@@ -1,0 +1,4 @@
+MAIL_SERVER = 'imap.ionos.de'
+MAIL_USER = 'mail@test.de'
+MAIL_PASSWORD = '12345678'
+MAIL_FOLDER = 'INBOX'
