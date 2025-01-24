@@ -63,14 +63,14 @@ echo -e "${GREEN}MySQL Root-Passwort erfolgreich gesetzt.${NC}"
 
 
 # Einrichtung der MySQL Datenbank
-echo -e "${YELLOW}Erstelle Datenbank "backup_monitor2" und Benutzer "backup_user"...${NC}"
+echo -e "${YELLOW}Erstelle Datenbank "backup_monitor3" und Benutzer "backup_user"...${NC}"
 read -s -p "Backup-Monitor Datenbank-Benutzer Passwort: " dbpass
 echo ""
 
 if ! mysql --user=root --password="${mysqlpass}" <<EOF
-CREATE DATABASE IF NOT EXISTS backup_monitor2 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS backup_monitor3 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS 'backup_user'@'localhost' IDENTIFIED BY '${dbpass}';
-GRANT ALL PRIVILEGES ON backup_monitor2.* TO 'backup_user'@'localhost';
+GRANT ALL PRIVILEGES ON backup_monitor3.* TO 'backup_user'@'localhost';
 FLUSH PRIVILEGES;
 EOF
 then
@@ -82,11 +82,11 @@ fi
 
 # Verzeichnis für das Projekt erstellen
 echo -e "${YELLOW}Erstelle Projekt-Verzeichnis...${NC}"
-mkdir -p /var/www/backup-monitor2
+mkdir -p /var/www/backup-monitor3
 
 # Projekt von GitHub klonen
 echo -e "${YELLOW}Klone Git Repository...${NC}"
-if git clone https://github.com/Herbertholzkopf/backup-monitor2.git /var/www/backup-monitor2; then
+if git clone https://github.com/Herbertholzkopf/backup-monitor3.git /var/www/backup-monitor3; then
     echo -e "${GREEN}Repository erfolgreich geklont${NC}"
 else
     echo -e "${RED}Fehler beim Klonen des Repositories${NC}"
@@ -96,15 +96,15 @@ fi
 
 
 # Importiere die Datenbankstruktur (muss nach dem Klonen passieren, da sonst die database.sql noch nicht existiert)
-if [ -f "/var/www/backup-monitor2/install/database.sql" ]; then
-    if mysql --user=root --password="${mysqlpass}" backup_monitor2 < /var/www/backup-monitor2/install/database.sql; then
+if [ -f "/var/www/backup-monitor3/install/database.sql" ]; then
+    if mysql --user=root --password="${mysqlpass}" backup_monitor3 < /var/www/backup-monitor3/install/database.sql; then
         echo -e "${GREEN}Datenbankstruktur erfolgreich importiert.${NC}"
     else
         echo -e "${RED}Fehler beim Importieren der Datenbankstruktur.${NC}"
         exit 1
     fi
 else
-    echo -e "${RED}database.sql nicht gefunden unter /var/www/backup-monitor2/install/database.sql${NC}"
+    echo -e "${RED}database.sql nicht gefunden unter /var/www/backup-monitor3/install/database.sql${NC}"
     exit 1
 fi
 
@@ -114,19 +114,19 @@ echo -e "${GREEN}Datenbank und Benutzer erfolgreich erstellt.${NC}"
 
 
 # Rechte des Verzeichnis anpassen
-chown -R www-data:www-data /var/www/backup-monitor2
-chmod -R 755 /var/www/backup-monitor2
-chown -R www-data:adm /var/www/backup-monitor2/log
-chmod 750 /var/www/backup-monitor2/log
-chmod 640 /var/www/backup-monitor2/log/*
+chown -R www-data:www-data /var/www/backup-monitor3
+chmod -R 755 /var/www/backup-monitor3
+chown -R www-data:adm /var/www/backup-monitor3/log
+chmod 750 /var/www/backup-monitor3/log
+chmod 640 /var/www/backup-monitor3/log/*
 
 # Nginx Konfiguration erstellen
 echo -e "${YELLOW}Konfiguriere Nginx...${NC}"
-cat > /etc/nginx/sites-available/backup-monitor2 <<'EOF'
+cat > /etc/nginx/sites-available/backup-monitor3 <<'EOF'
 server {
     listen 80;
     server_name _;
-    root /var/www/backup-monitor2;
+    root /var/www/backup-monitor3;
     index index.php index.html;
 
     # Hauptlocation
@@ -154,14 +154,14 @@ server {
     }
 
     # Logging
-    error_log /var/www/backup-monitor2/log/error.log;
-    access_log /var/www/backup-monitor2/log/access.log;
+    error_log /var/www/backup-monitor3/log/error.log;
+    access_log /var/www/backup-monitor3/log/access.log;
 }
 EOF
 
 
 # Nginx Site verknüpfen und aktivieren
-ln -s /etc/nginx/sites-available/backup-monitor2 /etc/nginx/sites-enabled/
+ln -s /etc/nginx/sites-available/backup-monitor3 /etc/nginx/sites-enabled/
 rm /etc/nginx/sites-enabled/default
 nginx -t && systemctl restart nginx
 
@@ -171,10 +171,10 @@ systemctl restart nginx
 
 ## Cron-Jobs einrichten
 #echo -e "${YELLOW}Richte Cron-Jobs ein...${NC}"
-#cat > /etc/cron.d/backup-monitor2 <<EOF
+#cat > /etc/cron.d/backup-monitor3 <<EOF
 ## Backup-Monitor Cron Jobs
-#*/5 * * * * www-data php /var/www/backup-monitor2/cron/fetch_mails.php
-#2-59/5 * * * * www-data php /var/www/backup-monitor2/cron/analyze_mails.php
+#*/5 * * * * www-data php /var/www/backup-monitor3/cron/fetch_mails.php
+#2-59/5 * * * * www-data php /var/www/backup-monitor3/cron/analyze_mails.php
 #EOF
 
 
