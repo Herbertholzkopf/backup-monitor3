@@ -489,40 +489,53 @@ $dashboardData = array_values($dashboardData);
                         <div class="job-type"><?php echo htmlspecialchars($job['backup_type']); ?></div>
                     </div>
 
-                        <div class="results-grid">
-                            <?php 
-                            $groupedResults = [];
-                            foreach ($job['results'] as $result) {
-                                $date = $result['date'];
-                                if (!isset($groupedResults[$date])) {
-                                    $groupedResults[$date] = [
-                                        'results' => [],
-                                        'status' => $result['status'],
-                                        'time' => $result['time']
-                                    ];
-                                }
-                                $groupedResults[$date]['results'][] = $result;
-                                if ($result['time'] > $groupedResults[$date]['time']) {
-                                    $groupedResults[$date]['status'] = $result['status'];
-                                    $groupedResults[$date]['time'] = $result['time'];
-                                }
-                            }
-                            ?>
+                    <div class="results-grid">
+                        <?php 
+                        // Generiere die letzten 21 Tage
+                        $dates = [];
+                        for ($i = 30; $i >= 0; $i--) {
+                            $dates[] = date('Y-m-d', strtotime("-$i days"));
+                        }
 
-                            <?php foreach ($groupedResults as $date => $groupedResult): ?>
+                        // Gruppiere Ergebnisse nach Datum
+                        $groupedResults = [];
+                        foreach ($job['results'] as $result) {
+                            $date = $result['date'];
+                            if (!isset($groupedResults[$date])) {
+                                $groupedResults[$date] = [
+                                    'results' => [],
+                                    'status' => $result['status'],
+                                    'time' => $result['time']
+                                ];
+                            }
+                            $groupedResults[$date]['results'][] = $result;
+                            if ($result['time'] > $groupedResults[$date]['time']) {
+                                $groupedResults[$date]['status'] = $result['status'];
+                                $groupedResults[$date]['time'] = $result['time'];
+                            }
+                        }
+
+                        // Zeige (graue) Quadrate für alle Daten
+                        foreach ($dates as $date) {
+                            if (isset($groupedResults[$date])) {
+                                $groupedResult = $groupedResults[$date];
+                                ?>
                                 <div class="result-square" 
-                                     style="background-color: <?php 
+                                    style="background-color: <?php 
                                         echo $groupedResult['status'] === 'success' ? 'var(--success-color)' : 
-                                             ($groupedResult['status'] === 'warning' ? 'var(--warning-color)' : 
-                                             'var(--error-color)'); 
-                                     ?>"
-                                     onclick="showTooltip(this, <?php echo htmlspecialchars(json_encode($groupedResult['results'])); ?>)">
+                                            ($groupedResult['status'] === 'warning' ? 'var(--warning-color)' : 
+                                            'var(--error-color)'); 
+                                    ?>"
+                                    onclick="showTooltip(this, <?php echo htmlspecialchars(json_encode($groupedResult['results'])); ?>)">
                                     <?php if (count($groupedResult['results']) > 1): ?>
                                         <div class="result-count"><?php echo count($groupedResult['results']); ?></div>
                                     <?php endif; ?>
                                 </div>
-                            <?php endforeach; ?>
-                        </div>
+                            <?php } else { ?>
+                                <div class="result-square" style="background-color: #e5e7eb"></div>
+                            <?php }
+                        } ?>
+                    </div>
                     </div>
                 <?php endforeach; ?>
             </div>
