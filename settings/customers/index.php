@@ -1,28 +1,20 @@
 <?php
-// Datenbank-Konfiguration und Verbindung bleibt gleich
-function getDatabaseConfig() {
-    $config = [];
-    $pythonFile = '/var/www/backup-monitor2/config/database.py';
-    if (file_exists($pythonFile)) {
-        $content = file_get_contents($pythonFile);
-        preg_match("/DB_HOST = '(.+)'/", $content, $matches);
-        $config['host'] = $matches[1] ?? 'localhost';
-        preg_match("/DB_USER = '(.+)'/", $content, $matches);
-        $config['user'] = $matches[1] ?? '';
-        preg_match("/DB_PASSWORD = '(.+)'/", $content, $matches);
-        $config['password'] = $matches[1] ?? '';
-        preg_match("/DB_NAME = '(.+)'/", $content, $matches);
-        $config['database'] = $matches[1] ?? '';
-    }
-    return $config;
-}
+// Config einbinden
+$config = require_once '../../config.php';
 
-$config = getDatabaseConfig();
-$conn = new mysqli($config['host'], $config['user'], $config['password'], $config['database']);
+// Datenbankverbindung herstellen
+$conn = new mysqli(
+    $config['server'],
+    $config['user'], 
+    $config['password'],
+    $config['database']
+);
 
+// Fehlerbehandlung
 if ($conn->connect_error) {
-    die("Verbindungsfehler: " . $conn->connect_error);
+    die('Verbindungsfehler: ' . $conn->connect_error);
 }
+$conn->set_charset('utf8mb4');
 
 // POST-Verarbeitung bleibt gleich
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
