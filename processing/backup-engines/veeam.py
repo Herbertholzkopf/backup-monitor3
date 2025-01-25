@@ -1,15 +1,15 @@
 # Suche in der mails Datenbank nach mit job_found "true" und result_processed "false"
 # In der backup_results Datenbank dann nach der mail_id suchen
-# Dann in der backup_job_id suchen und überprüfen, ob es der backup_type "Proxmox" ist, wenn nicht , überspringen und den nächsten Eintrag in der mails Datenbank prüfen.
+# Dann in der backup_job_id suchen und überprüfen, ob es der backup_type "Veeam Backup & Replication" ist, wenn nicht , überspringen und den nächsten Eintrag in der mails Datenbank prüfen.
 #
-# Wenn dann mal eine Mail gefunden wird, bei der alle Bedingungen erfüllt sind (job_found "true" und result_processed "false" und backup_type "Proxmox"), dann:
-# - Betreff nach "successful" oder "failed" durchsuchen -> setzte den Status in backup_results auf "success" oder "error"
+# Wenn dann mal eine Mail gefunden wird, bei der alle Bedingungen erfüllt sind (job_found "true" und result_processed "false" und backup_type "Veeam Backup & Replication"), dann:
+# - Betreff nach "Success" oder "Warning" oder "Failed" durchsuchen -> setzte den Status in backup_results auf 'success' oder 'warning' oder 'error'
 # - date aus der mail-Tabelle in der backup_results in die Felder date und time speichern
-# - suche in der mail-Tabelle im Text der Mail (content) nach der Zeit "Total running time: 9m 28s" und speichere die Zeit in der backup_results in das Feld "duration_minutes"
-# - suche in der mail-Tabelle im Text der Mail (content) nach der Größe "Total size: 486.986 GiB" und speichere die Größe in der backup_results in das Feld "size_mb"
+# - suche in der mail-Tabelle im Text der Mail (content) nach der Zeit "Duration0:07:26" und speichere die Zeit in der backup_results in das Feld "duration_minutes"
+# - suche in der mail-Tabelle im Text der Mail (content) nach der Größe "Backup size29,8 GB" und speichere die Größe in der backup_results in das Feld "size_mb"
+# - suche in der mail-Tabelle im Text der Mail (content) nach den verschiedenen VMs die gesichert worden sind und Speichere deren Namen und das Ergebnis (z.B. "Success") in der backup_results Tabelle in das note-Feld
 #
 # - Setzt result_processed in der mails-Tabelle auf True
-
 
 
 
@@ -19,7 +19,7 @@ import pymysql
 import re
 from datetime import datetime
 
-# Datenbankverbindung
+# Database connection
 sys.path.append(os.path.join(os.path.dirname(__file__), '../config'))
 import database
 
@@ -39,25 +39,50 @@ def connect_to_database():
         sys.exit(1)
 
 def process_duration(content):
-    match = re.search(r'Total running time: (\d+)m (\d+)s', content)
+    match = re.search(r'Duration(\d+):(\d+):(\d+)', content)
     if match:
-        minutes = int(match.group(1))
-        seconds = int(match.group(2))
-        return minutes + (1 if seconds >= 30 else 0)  # Round up if seconds >= 30
+        hours = int(match.group(1))
+        minutes = int(match.group(2))
+        seconds = int(match.group(3))
+        total_minutes = hours * 60 + minutes + (1 if seconds >= 30 else 0)
+        return total_minutes
     return None
 
 def process_size(content):
-    match = re.search(r'Total size: ([\d.]+) ([GM]iB)', content)
+    match = re.search(r'Backup size([\d,]+)\s*([MGT]B)', content)
     if match:
-        size = float(match.group(1))
+        size = float(match.group(1).replace(',', '.'))
         unit = match.group(2)
-        if unit == 'GiB':
-            return size * 1024  # Convert to MiB
+        if unit == 'GB':
+            return size * 1024  # Convert to MB
+        elif unit == 'TB':
+            return size * 1024 * 1024  # Convert to MB
         return size
     return None
 
-def process_proxmox_mails(connection):
-    print("Starting Proxmox backup mail processing...")
+def process_vm_results(content):
+    vm_results = []
+    vm_section_started = False
+    veeam_line_found = False
+    
+    for line in content.split('\n'):
+        if 'Veeam Backup & Replication' in line:
+            veeam_line_found = True
+            break
+        if 'NameStatusStart' in line:
+            vm_section_started = True
+            continue
+        if vm_section_started and line.strip() and not veeam_line_found:
+            for status in ['Success', 'Warning', 'Failed']:
+                if status in line:
+                    vm_name = line.split(status)[0].strip()
+                    vm_results.append(f"{vm_name}: {status}")
+                    break
+    
+    return "\n".join(vm_results) if vm_results else None
+
+def process_veeam_mails(connection):
+    print("Starting Veeam backup mail processing...")
     try:
         with connection.cursor() as cursor:
             # Get unprocessed mails with found jobs
@@ -71,7 +96,7 @@ def process_proxmox_mails(connection):
             mails = cursor.fetchall()
 
             for mail in mails:
-                # Check if backup job is Proxmox type
+                # Check if backup job is Veeam type
                 cursor.execute("""
                     SELECT backup_type 
                     FROM backup_jobs 
@@ -79,14 +104,21 @@ def process_proxmox_mails(connection):
                 """, (mail['backup_job_id'],))
                 job = cursor.fetchone()
 
-                if not job or job['backup_type'] != 'Proxmox':
+                if not job or job['backup_type'] != 'Veeam Backup & Replication':
                     continue
 
                 # Process mail content
-                status = 'success' if 'successful' in mail['subject'].lower() else 'error'
+                status = 'error'
+                subject_lower = mail['subject'].lower()
+                if 'success' in subject_lower:
+                    status = 'success'
+                elif 'warning' in subject_lower:
+                    status = 'warning'
+
                 print(f"Processing mail ID {mail['id']} - Status: {status}")
                 duration = process_duration(mail['content'])
                 size = process_size(mail['content'])
+                vm_notes = process_vm_results(mail['content'])
                 mail_date = mail['date']
 
                 # Update backup_results
@@ -96,7 +128,8 @@ def process_proxmox_mails(connection):
                         date = %s,
                         time = %s,
                         duration_minutes = %s,
-                        size_mb = %s
+                        size_mb = %s,
+                        note = %s
                     WHERE mail_id = %s
                 """, (
                     status,
@@ -104,6 +137,7 @@ def process_proxmox_mails(connection):
                     mail_date.time(),
                     duration,
                     size,
+                    vm_notes,
                     mail['id']
                 ))
 
@@ -124,7 +158,7 @@ def process_proxmox_mails(connection):
 def main():
     connection = connect_to_database()
     try:
-        process_proxmox_mails(connection)
+        process_veeam_mails(connection)
     finally:
         connection.close()
 
