@@ -215,7 +215,7 @@ $conn->set_charset('utf8mb4');
                     $result = $conn->query("
                         SELECT id, sender_email, subject, date, created_at, content 
                         FROM mails 
-                        WHERE processed = FALSE 
+                        WHERE result_processed = FALSE 
                         ORDER BY created_at DESC
                     ");
 

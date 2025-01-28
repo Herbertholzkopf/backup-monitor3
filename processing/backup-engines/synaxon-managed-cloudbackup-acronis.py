@@ -3,6 +3,9 @@
 # Dann in der backup_job_id suchen und überprüfen, ob es der backup_type "Synaxon managed Backup" ist, wenn nicht , überspringen und den nächsten Eintrag in der mails Datenbank prüfen.
 #
 # Wenn dann mal eine Mail gefunden wird, bei der alle Bedingungen erfüllt sind (job_found "true" und result_processed "false" und backup_type "Synaxon managed Backup"), dann:
+#
+# - wenn der Betreff der Mail "Statusbericht" enthält, dann setze result_processed auf True und überspringe die Mail & lösche den Eintrag in der backup_results Tabelle
+#
 # - Betreff nach "erfolgreich" oder "WARNUNGEN" durchsuchen -> setzte den Status in backup_results auf 'success' oder 'warning'
 # - date aus der mail-Tabelle in der backup_results in die Felder date und time speichern
 # - suche in der mail-Tabelle im Text der Mail (content) nach der Zeit "Backup-Dauer 00:10:04" und speichere die Zeit in der backup_results in das Feld "duration_minutes"
@@ -75,6 +78,26 @@ def process_synaxon_mails(connection):
                 if not job or job['backup_type'] != 'Synaxon managed Backup':
                     continue
 
+                # Neue Prüfung auf "Statusbericht" im Betreff
+                if "Statusbericht" in mail['subject']:
+                    print(f"Statusbericht found in mail ID {mail['id']} - Deleting backup result")
+                    # Backup-Result löschen
+                    cursor.execute("""
+                        DELETE FROM backup_results 
+                        WHERE mail_id = %s
+                    """, (mail['id'],))
+                    
+                    # Mail als verarbeitet markieren
+                    cursor.execute("""
+                        UPDATE mails 
+                        SET result_processed = TRUE 
+                        WHERE id = %s
+                    """, (mail['id'],))
+                    
+                    connection.commit()
+                    continue
+
+                # Originaler Code für die "normale" Verarbeitung
                 status = 'error'
                 subject_lower = mail['subject'].lower()
                 if 'erfolgreich' in subject_lower:

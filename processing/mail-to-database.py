@@ -1,3 +1,5 @@
+# Dieses Skipt verbindet sich mit einem IMAP-Postfach, liest alle E-Mails in einem bestimmten Ordner (z.B. INBOX) und speichert die Absender, Betreff und Inhalt in einer MySQL-Datenbank
+
 #!/usr/bin/env python3
 
 import imaplib

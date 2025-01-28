@@ -1,0 +1,8 @@
+
+
+
+Absender: sns@synologynotification.com
+
+Betreff: [Koller Synology-NAS] WebDAV cloud backup - Cloud-Backup zu Hetzner erfolgreich auf DiskStation
+
+Ihre Datensicherungsaufgabe Cloud-Backup zu Hetzner ist jetzt abgeschlossen.<BR><BR>Datensicherungsaufgabe: Cloud-Backup zu Hetzner<BR>Datensicherungsziel: DiskStation-Synology-HyperBackup / DiskStation_1.hbk<BR>Startzeit: Sa, 25 Jan 2025 02:00:01<BR>Dauer: 14 Minuten 26 Sekunden <BR><BR>Quellgröße gesamt:<BR>- Freigegebener Ordner: 2.3 TB<BR>- Anwendung: 288.1 MB<BR>- Metadaten: 9.7 GB<BR>Erhöhte Zielgröße: 136.4 MB<BR>Größe neuer Daten in freigegebenem Ordner: 25.7 MB<BR>Größe geänderter Daten in freigegebenem Ordner: 265.0 MB<BR>Größe gelöschter Daten in freigegebenem Ordner: 0.0 KB<BR>Größe geänderter Anwendungsdaten: 273.3 MB<BR><BR>Von DiskStation<BR><BR><BR>

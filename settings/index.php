@@ -106,7 +106,7 @@
         <h1>Einstellungen</h1>
         
         <div class="cards-container">
-            <a href="/settings/customers" class="card">
+            <a href="./customers" class="card">
                 <div class="card-header">
                     <div class="card-icon">
                         <img src="./user.png" alt="Kunden Icon von https://thenounproject.com/creator/denovo-agency/">
@@ -116,7 +116,7 @@
                 <p class="card-description">Erstellen, Bearbeiten & Löschen von Kunden</p>
             </a>
 
-            <a href="/settings/backup-jobs" class="card">
+            <a href="./backup-jobs" class="card">
                 <div class="card-header">
                     <div class="card-icon">
                         <img src="./database.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
@@ -126,7 +126,7 @@
                 <p class="card-description">Erstellen, Bearbeiten & Löschen von Backup-Jobs der Kunden</p>
             </a>
 
-            <a href="/settings/information" class="card">
+            <a href="./information" class="card">
                 <div class="card-header">
                     <div class="card-icon">
                         <img src="./info.png" alt="Info Icon von https://thenounproject.com/creator/denovo-agency/">
@@ -136,7 +136,7 @@
                 <p class="card-description">Anleitungen und Erklärungen zur Verwendung</p>
             </a>
 
-            <a href="/settings/unprocessed-mails" class="card">
+            <a href="./unprocessed-mails" class="card">
                 <div class="card-header">
                     <div class="card-icon">
                         <img src="./list.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
@@ -146,7 +146,7 @@
                 <p class="card-description">Diese Mails wurde noch nicht weiter verarbeitet oder konnten keinem Job zugewiesen werden</p>
             </a>
 
-            <a href="/settings/all-mails" class="card">
+            <a href="./all-mails" class="card">
                 <div class="card-header">
                     <div class="card-icon">
                         <img src="./bug.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">

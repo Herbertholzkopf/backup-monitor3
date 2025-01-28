@@ -451,7 +451,7 @@ $dashboardData = array_values($dashboardData);
         <!-- Header -->
         <div class="header">
             <h1>Backup Monitor</h1>
-            <a href="/settings/" class="settings-btn">Einstellungen</a>
+            <a href="./settings" class="settings-btn">Einstellungen</a>
         </div>
 
         <!-- Statistiken -->
@@ -553,7 +553,24 @@ $dashboardData = array_values($dashboardData);
             const tooltip = document.getElementById('tooltip');
             const rect = element.getBoundingClientRect();
             
+            // Generiere eine eindeutige ID für jedes Mail-Content Element
+            const mailContentsMap = new Map();
+            results.forEach((result, index) => {
+                if (result.mail_content) {
+                    mailContentsMap.set(`mail-${result.id}`, result.mail_content);
+                }
+            });
+            
             let tooltipContent = '';
+            
+            // Versteckte Div-Container für Mail-Contents
+            tooltipContent += '<div id="mail-contents" style="display: none;">';
+            mailContentsMap.forEach((content, id) => {
+                tooltipContent += `<div id="${id}">${content}</div>`;
+            });
+            tooltipContent += '</div>';
+            
+            // Füge die Details für jedes Ergebnis hinzu
             results.forEach((result, index) => {
                 tooltipContent += `
                     <div class="result-details">
@@ -597,12 +614,14 @@ $dashboardData = array_values($dashboardData);
                                 onchange="saveNote(${result.id}, this.value)"
                             >${result.note || ''}</textarea>
                             <div class="action-buttons">
-                                <button class="save-note-btn" onclick="saveNote(${result.id}, this.previousElementSibling.previousElementSibling.value)">
+                                <button class="save-note-btn" onclick="saveNote(${result.id}, this.parentElement.previousElementSibling.value)">
                                     Speichern
                                 </button>
-                                <button class="show-mail-btn" onclick="showMailContent(${JSON.stringify(result.mail_content || '').replace(/"/g, '&quot;')})">
-                                    Mail anzeigen
-                                </button>
+                                ${result.mail_content ? `
+                                    <button class="show-mail-btn" onclick="showMailContent('mail-${result.id}')">
+                                        Mail anzeigen
+                                    </button>
+                                ` : ''}
                             </div>
                         </div>
                     </div>
@@ -629,9 +648,34 @@ $dashboardData = array_values($dashboardData);
             isTooltipLocked = true;
         }
 
-        function showMailContent(content) {
+        function escapeJSString(str) {
+        return str.replace(/[\\"']/g, '\\$&')
+                 .replace(/\u0000/g, '\\0')
+                 .replace(/\n/g, '\\n')
+                 .replace(/\r/g, '\\r')
+                 .replace(/[\x00-\x1f\x7f-\x9f]/g, '');
+        }
+
+        function showMailContent(mailId) {
+            const contentElement = document.getElementById(mailId);
+            if (!contentElement) return;
+            
+            const content = contentElement.innerHTML;
             const mailModal = document.createElement('div');
             mailModal.className = 'mail-modal';
+            
+            // Prüfen ob der Content HTML enthält
+            const containsHTML = /<[a-z][\s\S]*>/i.test(content);
+            
+            // Content entsprechend aufbereiten
+            const processedContent = containsHTML ? 
+                content : 
+                content
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
             
             mailModal.innerHTML = `
                 <div class="mail-modal-content">
@@ -640,14 +684,16 @@ $dashboardData = array_values($dashboardData);
                         <button onclick="this.closest('.mail-modal').remove()">&times;</button>
                     </div>
                     <div class="mail-modal-body">
-                        <pre>${content || 'Kein Mail-Inhalt verfügbar'}</pre>
+                        ${containsHTML ? 
+                            `<div class="html-content">${processedContent}</div>` : 
+                            `<pre>${processedContent}</pre>`
+                        }
                     </div>
                 </div>
             `;
             
             document.body.appendChild(mailModal);
             
-            // Modal bei Klick außerhalb schließen
             mailModal.addEventListener('click', (e) => {
                 if (e.target === mailModal) {
                     mailModal.remove();
