@@ -70,3 +70,14 @@ CREATE TABLE IF NOT EXISTS backup_results (
     FOREIGN KEY (backup_job_id) REFERENCES backup_jobs(id) ON DELETE CASCADE,
     FOREIGN KEY (mail_id) REFERENCES mails(id)
 );
+
+-- Datenbank für die Anleitungen und Informationen
+-- enthält den Titel der Anleitung, den Inhalt der Anleitung und die Kategorie, in die die Anleitung gehört
+
+CREATE TABLE IF NOT EXISTS instructions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(255) NOT NULL,
+    content MEDIUMTEXT,
+    category VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
