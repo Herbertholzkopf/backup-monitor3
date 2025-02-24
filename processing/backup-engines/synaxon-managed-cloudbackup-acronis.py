@@ -39,13 +39,43 @@ def connect_to_database():
         sys.exit(1)
 
 def process_duration(content):
-    match = re.search(r'Backup-Dauer (\d+):(\d+):(\d+)', content)
-    if match:
-        hours = int(match.group(1))
-        minutes = int(match.group(2))
-        seconds = int(match.group(3))
-        total_minutes = hours * 60 + minutes + (1 if seconds >= 30 else 0)
-        return total_minutes
+    """
+    Extrahiert die Backup-Dauer aus dem E-Mail-Inhalt.
+    """
+    # Vereinfachter Ansatz: Finde die Position von "Backup-Dauer" und suche dann 
+    # nach der nächsten Zeitangabe im Format HH:MM:SS
+    backup_dauer_pos = content.find("Backup-Dauer")
+    if backup_dauer_pos > -1:
+        # Betrachte die nächsten 50 Zeichen nach "Backup-Dauer"
+        search_area = content[backup_dauer_pos:backup_dauer_pos + 50]
+        
+        # Finde die erste Zeitangabe im Format HH:MM:SS
+        time_match = re.search(r'(\d{2}):(\d{2}):(\d{2})', search_area)
+        if time_match:
+            hours = int(time_match.group(1))
+            minutes = int(time_match.group(2))
+            seconds = int(time_match.group(3))
+            
+            # Berechne die Gesamtdauer in Minuten
+            total_minutes = hours * 60 + minutes + (1 if seconds >= 30 else 0)
+            return total_minutes
+    
+    # Wenn keine Zeitangabe gefunden wurde, versuche es mit den alten Mustern als Fallback
+    fallback_patterns = [
+        r'Backup-Dauer\s+(\d{2}):(\d{2}):(\d{2})',
+        r'Backup-Dauer.*?(\d{2}):(\d{2}):(\d{2})',
+        r'Backup-Dauer[^\d]*(\d{2}):(\d{2}):(\d{2})'
+    ]
+    
+    for pattern in fallback_patterns:
+        match = re.search(pattern, content, re.DOTALL)
+        if match:
+            hours = int(match.group(1))
+            minutes = int(match.group(2))
+            seconds = int(match.group(3))
+            total_minutes = hours * 60 + minutes + (1 if seconds >= 30 else 0)
+            return total_minutes
+    
     return None
 
 def process_plan_name(content):
