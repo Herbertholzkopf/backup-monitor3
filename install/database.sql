@@ -81,3 +81,17 @@ CREATE TABLE IF NOT EXISTS instructions (
     category VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+--- Tabelle die angibt, wie lange ein Backup-Job schon den aktuellen Status hat
+--- mögliche Status sind 'success', 'warning', 'error', 'none' (none --> kein Backup)
+
+CREATE TABLE IF NOT EXISTS status_duration (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    backup_job_id INT NOT NULL,
+    current_status ENUM('success', 'warning', 'error', 'none') NOT NULL,
+    days_in_status INT NOT NULL,
+    last_update DATE NOT NULL,
+    last_backup_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (backup_job_id) REFERENCES backup_jobs(id) ON DELETE CASCADE
+);
