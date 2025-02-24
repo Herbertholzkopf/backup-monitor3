@@ -24,19 +24,38 @@ def connect_to_database():
         sys.exit(1)
 
 def process_duration(content):
-    match = re.search(r'Dauer: (\d+) Minuten (\d+) Sekunden', content)
-    if match:
-        minutes = int(match.group(1))
-        seconds = int(match.group(2))
-        return minutes + (1 if seconds >= 30 else 0)  # Aufrunden wenn Sekunden >= 30
+    """
+    Extrahiert die Dauer aus einem Text, der Zeitangaben im Format
+    "Dauer: X Stunde(n) Y Minute(n) Z Sekunde(n)" enthält.
+    Berücksichtigt Singular und Plural der Zeiteinheiten.
     
-    # Prüfe auch auf Format mit nur Sekunden
-    match = re.search(r'Dauer: (\d+) Sekunden', content)
-    if match:
-        seconds = int(match.group(1))
-        return 1 if seconds >= 30 else 0  # Wenn weniger als 30 Sekunden, dann 0 Minuten
+    Returns:
+        int: Gesamtdauer in Minuten (gerundet)
+    """
     
-    return None
+    # Für jedes Zeitsegment eigene Regex
+    hours_regex = r'(\d+)\s+(?:Stunde|Stunden)'
+    minutes_regex = r'(\d+)\s+(?:Minute|Minuten)'
+    seconds_regex = r'(\d+)\s+(?:Sekunde|Sekunden)'
+    
+    # Finde jedes Segment einzeln
+    hours_match = re.search(hours_regex, content)
+    minutes_match = re.search(minutes_regex, content)
+    seconds_match = re.search(seconds_regex, content)
+    
+    # Extrahiere Werte oder setze auf 0
+    hours = int(hours_match.group(1)) if hours_match else 0
+    minutes = int(minutes_match.group(1)) if minutes_match else 0
+    seconds = int(seconds_match.group(1)) if seconds_match else 0
+    
+    # Gesamtminuten berechnen
+    total_minutes = hours * 60 + minutes
+    
+    # Aufrunden wenn Sekunden >= 30
+    if seconds >= 30:
+        total_minutes += 1
+    
+    return total_minutes
 
 def process_size(content):
     match = re.search(r'Erhöhte Zielgröße: ([\d.]+) ([MGT]B)', content)
