@@ -104,7 +104,7 @@ def process_veeam_mails(connection):
                 """, (mail['backup_job_id'],))
                 job = cursor.fetchone()
 
-                if not job or job['backup_type'] != 'Veeam Backup & Replication':
+                if not job or not (job['backup_type'] == 'Veeam Backup & Replication' or job['backup_type'] == 'Veeam Agent'):
                     continue
 
                 # Process mail content
