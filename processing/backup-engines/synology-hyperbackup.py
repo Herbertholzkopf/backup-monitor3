@@ -33,10 +33,10 @@ def process_duration(content):
         int: Gesamtdauer in Minuten (gerundet)
     """
     
-    # Für jedes Zeitsegment eigene Regex
-    hours_regex = r'(\d+)\s+(?:Stunde|Stunden)'
-    minutes_regex = r'(\d+)\s+(?:Minute|Minuten)'
-    seconds_regex = r'(\d+)\s+(?:Sekunde|Sekunden)'
+    # Für jedes Zeitsegment eigene Regex mit flexiblem Whitespace
+    hours_regex = r'(\d+)\s*(?:Stunde|Stunden)'
+    minutes_regex = r'(\d+)\s*(?:Minute|Minuten)'
+    seconds_regex = r'(\d+)\s*(?:Sekunde|Sekunden)'
     
     # Finde jedes Segment einzeln
     hours_match = re.search(hours_regex, content)
