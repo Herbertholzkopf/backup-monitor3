@@ -74,7 +74,7 @@ def process_synology_mails(connection):
                 """, (mail['backup_job_id'],))
                 job = cursor.fetchone()
 
-                if not job or job['backup_type'] != 'Synology':
+                if not job or job['backup_type'] != 'Synology HyperBackup':
                     continue
 
                 # Process mail content
