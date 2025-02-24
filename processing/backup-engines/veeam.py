@@ -60,21 +60,37 @@ def process_duration(content, backup_type):
     return None
 
 def process_size(content, backup_type):
-    # Versuche zunächst das einfache Format für beide Typen
+    # Versuche zunächst mit Komma als Dezimaltrennzeichen
     match = re.search(r'Backup size\s*([\d,]+)\s*([MGT]B)', content)
+    if not match:
+        # Versuche mit Punkt als Dezimaltrennzeichen
+        match = re.search(r'Backup size\s*([\d.]+)\s*([MGT]B)', content)
     
     # Wenn das nicht funktioniert, versuche backup-type-spezifische Formate
     if not match:
         if 'Veeam Backup & Replication' in backup_type:
-            # Versuche das ältere Format für B&R
+            # Versuche das ältere Format für B&R mit Komma
             match = re.search(r'Backup size([\d,]+)\s*([MGT]B)', content)
+            if not match:
+                # Versuche das ältere Format für B&R mit Punkt
+                match = re.search(r'Backup size([\d.]+)\s*([MGT]B)', content)
         else:
-            # Format für Veeam Agent (HTML-basiert)
+            # Format für Veeam Agent (HTML-basiert) mit Komma
             match = re.search(r'<b>Backup size</b>.*?>([\d,]+)\s*([MGT]B)<', content, re.DOTALL)
+            if not match:
+                # Format für Veeam Agent (HTML-basiert) mit Punkt
+                match = re.search(r'<b>Backup size</b>.*?>([\d.]+)\s*([MGT]B)<', content, re.DOTALL)
     
     if match:
-        size = float(match.group(1).replace(',', '.'))
+        # Normalisiere das Dezimaltrennzeichen auf Punkt
+        size_str = match.group(1)
+        # Ersetze Komma durch Punkt, falls notwendig
+        if ',' in size_str and '.' not in size_str:
+            size_str = size_str.replace(',', '.')
+        
+        size = float(size_str)
         unit = match.group(2)
+        
         if unit == 'GB':
             return size * 1024  # Convert to MB
         elif unit == 'TB':
