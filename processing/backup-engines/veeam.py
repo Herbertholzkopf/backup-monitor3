@@ -38,8 +38,19 @@ def connect_to_database():
         print(f"Fehler beim Verbinden mit der Datenbank: {e}")
         sys.exit(1)
 
-def process_duration(content):
-    match = re.search(r'Duration(\d+):(\d+):(\d+)', content)
+def process_duration(content, backup_type):
+    # Versuche zunächst das einfache Format für beide Typen
+    match = re.search(r'Duration\s*(\d+):(\d+):(\d+)', content)
+    
+    # Wenn das nicht funktioniert, versuche backup-type-spezifische Formate
+    if not match:
+        if 'Veeam Backup & Replication' in backup_type:
+            # Versuche das ältere Format für B&R
+            match = re.search(r'Duration(\d+):(\d+):(\d+)', content)
+        else:
+            # Format für Veeam Agent (HTML-basiert)
+            match = re.search(r'<b>Duration</b>.*?(\d+):(\d+):(\d+)', content, re.DOTALL)
+    
     if match:
         hours = int(match.group(1))
         minutes = int(match.group(2))
@@ -48,8 +59,19 @@ def process_duration(content):
         return total_minutes
     return None
 
-def process_size(content):
-    match = re.search(r'Backup size([\d,]+)\s*([MGT]B)', content)
+def process_size(content, backup_type):
+    # Versuche zunächst das einfache Format für beide Typen
+    match = re.search(r'Backup size\s*([\d,]+)\s*([MGT]B)', content)
+    
+    # Wenn das nicht funktioniert, versuche backup-type-spezifische Formate
+    if not match:
+        if 'Veeam Backup & Replication' in backup_type:
+            # Versuche das ältere Format für B&R
+            match = re.search(r'Backup size([\d,]+)\s*([MGT]B)', content)
+        else:
+            # Format für Veeam Agent (HTML-basiert)
+            match = re.search(r'<b>Backup size</b>.*?>([\d,]+)\s*([MGT]B)<', content, re.DOTALL)
+    
     if match:
         size = float(match.group(1).replace(',', '.'))
         unit = match.group(2)
@@ -60,24 +82,43 @@ def process_size(content):
         return size
     return None
 
-def process_vm_results(content):
+def process_vm_results(content, backup_type):
     vm_results = []
-    vm_section_started = False
-    veeam_line_found = False
     
-    for line in content.split('\n'):
-        if 'Veeam Backup & Replication' in line:
-            veeam_line_found = True
-            break
-        if 'NameStatusStart' in line:
-            vm_section_started = True
-            continue
-        if vm_section_started and line.strip() and not veeam_line_found:
-            for status in ['Success', 'Warning', 'Failed']:
-                if status in line:
-                    vm_name = line.split(status)[0].strip()
-                    vm_results.append(f"{vm_name}: {status}")
-                    break
+    # Für Veeam Backup & Replication (alte Methode)
+    if 'Veeam Backup & Replication' in backup_type:
+        # Versuche zunächst die alte Methode
+        vm_section_started = False
+        
+        for line in content.split('\n'):
+            if 'NameStatusStart' in line:
+                vm_section_started = True
+                continue
+            if vm_section_started and line.strip() and not 'Veeam Backup & Replication' in line:
+                for status in ['Success', 'Warning', 'Failed']:
+                    if status in line:
+                        parts = line.split(status)
+                        if len(parts) > 0:
+                            vm_name = parts[0].strip()
+                            vm_results.append(f"{vm_name}: {status}")
+                            break
+        
+        # Wenn keine VMs gefunden wurden, versuche HTML-Parsing
+        if not vm_results:
+            matches = re.finditer(r'<td nowrap="" style="[^"]*">([^<]+)</td>\s*<td nowrap="" style="[^"]*"><span style="[^"]*">(Success|Warning|Failed)</span>', content)
+            for match in matches:
+                vm_name = match.group(1)
+                status = match.group(2)
+                vm_results.append(f"{vm_name}: {status}")
+    
+    # Für Veeam Agent
+    else:
+        # Suche nach Computernamen und Status in Veeam Agent E-Mails
+        matches = re.finditer(r'<td nowrap="" style="[^"]*">([^<]+)</td>\s*<td nowrap="" style="[^"]*"><span style="[^"]*">(Success|Warning|Failed)</span>', content)
+        for match in matches:
+            vm_name = match.group(1)
+            status = match.group(2)
+            vm_results.append(f"{vm_name}: {status}")
     
     return "\n".join(vm_results) if vm_results else None
 
@@ -104,7 +145,8 @@ def process_veeam_mails(connection):
                 """, (mail['backup_job_id'],))
                 job = cursor.fetchone()
 
-                if not job or not (job['backup_type'] == 'Veeam Backup & Replication' or job['backup_type'] == 'Veeam Agent'):
+                # Überprüfen, ob es sich um eine Veeam-Typ handelt (entweder Backup & Replication oder Agent)
+                if not job or not job['backup_type'].startswith('Veeam'):
                     continue
 
                 # Process mail content
@@ -115,10 +157,12 @@ def process_veeam_mails(connection):
                 elif 'warning' in subject_lower:
                     status = 'warning'
 
-                print(f"Processing mail ID {mail['id']} - Status: {status}")
-                duration = process_duration(mail['content'])
-                size = process_size(mail['content'])
-                vm_notes = process_vm_results(mail['content'])
+                print(f"Processing mail ID {mail['id']} - Status: {status} - Type: {job['backup_type']}")
+                
+                # Übergeben des Backup-Typs an die Verarbeitungsfunktionen
+                duration = process_duration(mail['content'], job['backup_type'])
+                size = process_size(mail['content'], job['backup_type'])
+                vm_notes = process_vm_results(mail['content'], job['backup_type'])
                 mail_date = mail['date']
 
                 # Update backup_results
