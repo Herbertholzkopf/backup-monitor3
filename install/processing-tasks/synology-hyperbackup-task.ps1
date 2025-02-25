@@ -4,10 +4,10 @@
 $TaskName = "(backup-monitor3) - Synology HyperBackup"
 
 # Pfad zum Python-Skript
-$PythonScriptPath = "C:\inetpub\wwwroot\backup-monitor3\processing\synology-hyperbackup.py"
+$PythonScriptPath = "C:\inetpub\wwwroot\backup-monitor3\processing\backup-engines\synology-hyperbackup.py"
 
 # Arbeitsverzeichnis
-$WorkingDirectory = "C:\inetpub\wwwroot\backup-monitor3\processing\"
+$WorkingDirectory = "C:\inetpub\wwwroot\backup-monitor3\processing\backup-engines\"
 
 # Befehl zum Ausführen (Python-Interpreter und Skript)
 # Vollständiger Pfad zum Python-Interpreter

@@ -4,10 +4,10 @@
 $TaskName = "(backup-monitor3) - Synaxon managed Backup"
 
 # Pfad zum Python-Skript
-$PythonScriptPath = "C:\inetpub\wwwroot\backup-monitor3\processing\synology-cloud.py"
+$PythonScriptPath = "C:\inetpub\wwwroot\backup-monitor3\processing\backup-engines\synaxon-cloud.py"
 
 # Arbeitsverzeichnis
-$WorkingDirectory = "C:\inetpub\wwwroot\backup-monitor3\processing\"
+$WorkingDirectory = "C:\inetpub\wwwroot\backup-monitor3\processing\backup-engines\"
 
 # Befehl zum Ausführen (Python-Interpreter und Skript)
 # Vollständiger Pfad zum Python-Interpreter
