@@ -377,6 +377,11 @@ def send_email(subject, html_content, recipients):
         msg['From'] = mail.MAIL_USER
         msg['To'] = ', '.join(recipients)
         
+        # High Priority Header hinzufügen
+        msg['X-Priority'] = '1'
+        msg['X-MSMail-Priority'] = 'High'
+        msg['Importance'] = 'High'
+        
         # HTML-Teil
         html_part = MIMEText(html_content, 'html')
         msg.attach(html_part)
@@ -422,7 +427,12 @@ def main():
         # Nur E-Mail senden, wenn es problematische Backups gibt
         if problematic_backups:
             # E-Mail versenden
-            recipients = ['technik@phd-it-systeme.de']  # Hier Empfänger eintragen
+            recipients = [
+                'technik@phd-it-systeme.de',
+                'andreas.koller@phd-it-systeme.de',
+                'dominik.schmidt@phd-it-systeme.de',
+                'joshua.lux@phd-it-systeme.de'
+            ]
             subject = f"Backup Status Bericht: {status_counts['warning']} Warnungen, {status_counts['error']} Fehler, {status_counts['none']} ohne Status"
             
             send_email(subject, html_report, recipients)
