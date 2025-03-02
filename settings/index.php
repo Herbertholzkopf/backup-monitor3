@@ -19,11 +19,13 @@
             background-color: #f3f4f6;
             min-height: 100vh;
             padding: 8rem 2rem;
+            padding-bottom: 4rem;
         }
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
+            margin-bottom: 4rem;
         }
 
         h1 {
@@ -88,17 +90,28 @@
         }
 
         footer {
-            text-align: center;
-            color: #666;
-            position: fixed;
-            bottom: 1rem;
-            width: 100%;
-            left: 0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        background-color: white;
+        border-top: 1px solid #e5e7eb;
+        padding: 1rem 0;
+        z-index: 100;
+        color: #6b7280;
         }
 
-        footer span {
-            color: red;
+        footer .container {
+            max-width: 1200px;
+            margin: 0 auto;
         }
+
+        .footer-link {
+            color: inherit;
+            text-decoration: none;
+        }
+
     </style>
 </head>
 <body>
@@ -158,8 +171,11 @@
         </div>
     </div>
 
-    <footer>
-        made with <span>❤</span> by Andreas Koller
+    <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-4 z-10">
+        <div class="container mx-auto text-center">
+            Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller</a>
+        </div>
     </footer>
+
 </body>
 </html>
