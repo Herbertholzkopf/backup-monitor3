@@ -202,6 +202,16 @@
                 </div>
                 <p class="card-description">Liste aller gespeicherten Mails inkl. zugeordneter Backup-Jobs und Ergebnisse (für Troubleshooting)</p>
             </a>
+
+            <a href="./mail-filter" class="card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <img src="./trash.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
+                    </div>
+                    <h2 class="card-title">Mail-Filter</h2>
+                </div>
+                <p class="card-description">Hier können Filter für das automatische Aussortieren von Mails konfiguriert werden</p>
+            </a>
         </div>
     </div>
 
