@@ -502,8 +502,9 @@ if (!isset($_SESSION)) {
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color: rgba(0, 0, 0, 0.6);
             z-index: 1000;
+            backdrop-filter: blur(2px);
         }
 
         .modal-content {
@@ -512,64 +513,149 @@ if (!isset($_SESSION)) {
             left: 50%;
             transform: translate(-50%, -50%);
             background-color: var(--card-background);
-            padding: 1.5rem;
+            padding: 1.75rem;
             border-radius: 0.5rem;
-            width: 90%;
-            max-width: 1000px;
+            width: 95%;
+            max-width: 1200px;
             max-height: 90vh;
             overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            border: 1px solid var(--border-color);
         }
 
         .modal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header h2 {
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .modal-section {
+            margin-bottom: 1.75rem;
+            padding: 1.25rem;
+            background-color: var(--background-color);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-section h3 {
+            margin-bottom: 1.25rem;
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-color);
             padding-bottom: 0.5rem;
             border-bottom: 1px solid var(--border-color);
         }
 
-        .modal-section {
-            margin-bottom: 1.5rem;
-            padding: 1rem;
-            background-color: var(--background-color);
-            border-radius: 0.375rem;
-        }
-
-        .modal-section h3 {
-            margin-bottom: 1rem;
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: var(--text-color);
-        }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1rem;
+        .info-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
         }
 
         .info-item {
+            display: flex;
+            flex-direction: column;
             margin-bottom: 0.5rem;
         }
 
-        .info-item strong {
-            display: inline-block;
-            min-width: 120px;
-            margin-right: 0.5rem;
+        .info-label {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
         }
 
+        .info-value {
+            color: var(--text-color);
+            font-size: 1rem;
+            word-break: break-word;
+            line-height: 1.5;
+        }
+
+        .mail-content-container {
+            margin-top: 1rem;
+        }
+
+        /* Beginn der aktualisierten E-Mail-Anzeige Styles */
         .mail-content {
             background-color: white;
             border: 1px solid var(--border-color);
             border-radius: 0.375rem;
             padding: 1rem;
-            white-space: pre-wrap;
-            font-family: monospace;
-            max-height: 300px;
+            max-height: 550px;
             overflow-y: auto;
             margin-top: 0.5rem;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
         }
+
+        /* Plaintext E-Mail Anzeige */
+        .mail-content pre {
+            white-space: pre-wrap;
+            font-family: "Courier New", monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        /* Container für HTML-E-Mails */
+        .mail-content .html-content {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        /* HTML-E-Mail-Element-Overrides */
+        .html-content * {
+            max-width: 100%;
+        }
+
+        .html-content hr {
+            border: none;
+            border-top: 1px solid #e5e7eb;
+            margin: 0.5rem 0;
+        }
+
+        .html-content body, 
+        .html-content div,
+        .html-content p,
+        .html-content span,
+        .html-content table,
+        .html-content tr,
+        .html-content td {
+            margin: 0;
+            padding: 0;
+        }
+
+        .html-content table {
+            border-collapse: collapse;
+        }
+
+        .html-content img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Fix für zusätzliche Container und Elemente */
+        .html-content > div:first-child {
+            margin-top: 0 !important;
+        }
+
+        .html-content > div:last-child {
+            margin-bottom: 0 !important;
+        }
+        /* Ende der aktualisierten E-Mail-Anzeige Styles */
 
         .close-modal {
             background: none;
@@ -577,6 +663,11 @@ if (!isset($_SESSION)) {
             font-size: 1.5rem;
             cursor: pointer;
             color: var(--text-secondary);
+            transition: color 0.2s;
+        }
+
+        .close-modal:hover {
+            color: var(--danger-color);
         }
 
         .status-badge {
@@ -681,7 +772,6 @@ if (!isset($_SESSION)) {
         header h1 {
             margin-right: auto;
         }
-
     </style>
 </head>
 <body>
@@ -881,6 +971,8 @@ if (!isset($_SESSION)) {
         </div>
     </div>
 
+    <!-- Ersetze den Modal-Code im vorhandenen PHP-Dokument durch diesen Code -->
+
     <!-- Modal für E-Mail Details -->
     <div id="detailModal" class="modal">
         <div class="modal-content">
@@ -892,22 +984,26 @@ if (!isset($_SESSION)) {
             <!-- E-Mail Informationen -->
             <div class="modal-section">
                 <h3>E-Mail Informationen</h3>
-                <div class="info-grid">
+                <div class="info-list">
                     <div class="info-item">
-                        <strong>Datum:</strong> <span id="mailDate"></span>
+                        <div class="info-label">Datum:</div>
+                        <div class="info-value" id="mailDate"></div>
                     </div>
                     <div class="info-item">
-                        <strong>Absender:</strong> <span id="mailSender"></span>
+                        <div class="info-label">Absender:</div>
+                        <div class="info-value" id="mailSender"></div>
                     </div>
                     <div class="info-item">
-                        <strong>Betreff:</strong> <span id="mailSubject"></span>
+                        <div class="info-label">Betreff:</div>
+                        <div class="info-value" id="mailSubject"></div>
                     </div>
                     <div class="info-item">
-                        <strong>Verarbeitet:</strong> <span id="mailProcessed"></span>
+                        <div class="info-label">Verarbeitet:</div>
+                        <div class="info-value" id="mailProcessed"></div>
                     </div>
                 </div>
-                <div class="info-item">
-                    <strong>Inhalt:</strong>
+                <div class="info-item mail-content-container">
+                    <div class="info-label">Inhalt:</div>
                     <div class="mail-content" id="mailContent"></div>
                 </div>
             </div>
@@ -915,53 +1011,66 @@ if (!isset($_SESSION)) {
             <!-- Backup-Job Informationen -->
             <div class="modal-section">
                 <h3>Backup-Job Informationen</h3>
-                <div class="info-grid">
+                <div class="info-list">
                     <div class="info-item">
-                        <strong>Name:</strong> <span id="jobName"></span>
+                        <div class="info-label">Name:</div>
+                        <div class="info-value" id="jobName"></div>
                     </div>
                     <div class="info-item">
-                        <strong>Kunde:</strong> <span id="customerName"></span>
+                        <div class="info-label">Kunde:</div>
+                        <div class="info-value" id="customerName"></div>
                     </div>
                     <div class="info-item">
-                        <strong>E-Mail Suchwort:</strong> <span id="searchTermMail"></span>
+                        <div class="info-label">E-Mail Suchwort:</div>
+                        <div class="info-value" id="searchTermMail"></div>
                     </div>
                     <div class="info-item">
-                        <strong>Betreff Suchwort:</strong> <span id="searchTermSubject"></span>
+                        <div class="info-label">Betreff Suchwort:</div>
+                        <div class="info-value" id="searchTermSubject"></div>
                     </div>
                     <div class="info-item">
-                        <strong>Text Suchwort 1:</strong> <span id="searchTermText"></span>
+                        <div class="info-label">Text Suchwort 1:</div>
+                        <div class="info-value" id="searchTermText"></div>
                     </div>
                     <div class="info-item">
-                        <strong>Text Suchwort 2:</strong> <span id="searchTermText2"></span>
+                        <div class="info-label">Text Suchwort 2:</div>
+                        <div class="info-value" id="searchTermText2"></div>
                     </div>
-                </div>
-                <div class="info-item">
-                    <strong>Notiz:</strong> <span id="jobNote"></span>
+                    <div class="info-item">
+                        <div class="info-label">Notiz:</div>
+                        <div class="info-value" id="jobNote"></div>
+                    </div>
                 </div>
             </div>
 
             <!-- Backup-Ergebnis Informationen -->
             <div class="modal-section">
                 <h3>Backup-Ergebnis</h3>
-                <div class="info-grid">
+                <div class="info-list">
                     <div class="info-item">
-                        <strong>Status:</strong> <span id="backupStatus"></span>
+                        <div class="info-label">Status:</div>
+                        <div class="info-value" id="backupStatus"></div>
                     </div>
                     <div class="info-item">
-                        <strong>Datum:</strong> <span id="backupDate"></span>
+                        <div class="info-label">Datum:</div>
+                        <div class="info-value" id="backupDate"></div>
                     </div>
                     <div class="info-item">
-                        <strong>Uhrzeit:</strong> <span id="backupTime"></span>
+                        <div class="info-label">Uhrzeit:</div>
+                        <div class="info-value" id="backupTime"></div>
                     </div>
                     <div class="info-item">
-                        <strong>Größe:</strong> <span id="backupSize"></span>
+                        <div class="info-label">Größe:</div>
+                        <div class="info-value" id="backupSize"></div>
                     </div>
                     <div class="info-item">
-                        <strong>Dauer:</strong> <span id="backupDuration"></span>
+                        <div class="info-label">Dauer:</div>
+                        <div class="info-value" id="backupDuration"></div>
                     </div>
-                </div>
-                <div class="info-item">
-                    <strong>Notiz:</strong> <span id="backupNote"></span>
+                    <div class="info-item">
+                        <div class="info-label">Notiz:</div>
+                        <div class="info-value" id="backupNote"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1006,7 +1115,40 @@ if (!isset($_SESSION)) {
             document.getElementById('mailSender').textContent = data.sender_email || '-';
             document.getElementById('mailSubject').textContent = data.subject || '-';
             document.getElementById('mailProcessed').textContent = data.result_processed == 1 ? 'Ja' : 'Nein';
-            document.getElementById('mailContent').textContent = data.content || 'Kein Inhalt verfügbar';
+            
+            // Prüfen ob der Content HTML enthält
+            const mailContent = data.content || 'Kein Inhalt verfügbar';
+            const containsHTML = /<[a-z][\s\S]*>/i.test(mailContent);
+            
+            // Content Element
+            const contentElement = document.getElementById('mailContent');
+            
+            // Cleanup von vorherigem Inhalt
+            contentElement.innerHTML = '';
+            
+            if (containsHTML) {
+                // HTML-Inhalt: Als HTML einbinden und in einen Rahmen setzen
+                const htmlContainer = document.createElement('div');
+                htmlContainer.className = 'html-content';
+                
+                // iFrame-Ansatz für bessere Isolation des HTML-Inhalts
+                const frameContainer = document.createElement('div');
+                frameContainer.style.width = '100%';
+                frameContainer.style.height = '500px';
+                frameContainer.style.overflow = 'auto';
+                frameContainer.style.border = 'none';
+                
+                // HTML direkt einbinden
+                htmlContainer.innerHTML = mailContent;
+                
+                // Dem Content-Element hinzufügen
+                contentElement.appendChild(htmlContainer);
+            } else {
+                // Plaintext: Sichere Darstellung mit Escaping
+                const preElement = document.createElement('pre');
+                preElement.textContent = mailContent;
+                contentElement.appendChild(preElement);
+            }
 
             // Backup-Job Informationen
             document.getElementById('jobName').textContent = data.backup_job_name || '-';
@@ -1022,7 +1164,7 @@ if (!isset($_SESSION)) {
             const statusSpan = document.getElementById('backupStatus');
             if (status) {
                 let statusText = status === 'success' ? 'Erfolgreich' : 
-                                (status === 'warning' ? 'Warnung' : 'Fehler');
+                            (status === 'warning' ? 'Warnung' : 'Fehler');
                 let statusClass = status === 'success' ? 'success' : 
                                 (status === 'warning' ? 'warning' : 'error');
                 statusSpan.innerHTML = `<span class="status-badge status-${statusClass}">${statusText}</span>`;

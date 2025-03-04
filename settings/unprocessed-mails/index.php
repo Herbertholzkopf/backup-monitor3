@@ -493,10 +493,68 @@ function getSortIndicator($field, $current_sort_by, $current_sort_order) {
             border: 1px solid var(--border-color);
             border-radius: 0.375rem;
             padding: 1rem;
-            white-space: pre-wrap;
-            font-family: monospace;
             max-height: 400px;
             overflow-y: auto;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+
+        /* Plaintext E-Mail Anzeige */
+        .mail-content pre {
+            white-space: pre-wrap;
+            font-family: "Courier New", monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        /* Container für HTML-E-Mails */
+        .mail-content .html-content {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        /* HTML-E-Mail-Element-Overrides */
+        .html-content * {
+            max-width: 100%;
+        }
+
+        .html-content hr {
+            border: none;
+            border-top: 1px solid #e5e7eb;
+            margin: 0.5rem 0;
+        }
+
+        .html-content body, 
+        .html-content div,
+        .html-content p,
+        .html-content span,
+        .html-content table,
+        .html-content tr,
+        .html-content td {
+            margin: 0;
+            padding: 0;
+        }
+
+        .html-content table {
+            border-collapse: collapse;
+        }
+
+        .html-content img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Fix für zusätzliche Container und Elemente */
+        .html-content > div:first-child {
+            margin-top: 0 !important;
+        }
+
+        .html-content > div:last-child {
+            margin-bottom: 0 !important;
         }
 
         .form-group {
@@ -849,10 +907,32 @@ function getSortIndicator($field, $current_sort_by, $current_sort_order) {
             document.getElementById('modalSender').textContent = mailData.sender_email;
             document.getElementById('modalSubject').textContent = mailData.subject;
             document.getElementById('modalDate').textContent = new Date(mailData.created_at).toLocaleString('de-DE');
-            document.getElementById('modalContent').textContent = mailData.content;
-        
-        // Event-Listener für die Modal-Buttons hinzufügen
-        document.getElementById('modalAssignBtn').onclick = function() {
+            
+            // Prüfen ob der Content HTML enthält
+            const mailContent = mailData.content || 'Kein Inhalt verfügbar';
+            const containsHTML = /<[a-z][\s\S]*>/i.test(mailContent);
+            
+            // Content Element
+            const contentElement = document.getElementById('modalContent');
+            
+            // Cleanup von vorherigem Inhalt
+            contentElement.innerHTML = '';
+            
+            if (containsHTML) {
+                // HTML-Inhalt: Als HTML einbinden und in einen Rahmen setzen
+                const htmlContainer = document.createElement('div');
+                htmlContainer.className = 'html-content';
+                htmlContainer.innerHTML = mailContent;
+                contentElement.appendChild(htmlContainer);
+            } else {
+                // Plaintext: Sichere Darstellung mit Escaping
+                const preElement = document.createElement('pre');
+                preElement.textContent = mailContent;
+                contentElement.appendChild(preElement);
+            }
+
+            // Event-Listener für die Modal-Buttons hinzufügen
+            document.getElementById('modalAssignBtn').onclick = function() {
                 closeModal('mailModal');
                 showAssignModal(currentMailId);
             };
