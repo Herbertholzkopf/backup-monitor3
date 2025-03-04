@@ -178,7 +178,7 @@
                     <div class="card-icon">
                         <img src="./info.png" alt="Info Icon von https://thenounproject.com/creator/denovo-agency/">
                     </div>
-                    <h2 class="card-title">Informationen</h2>
+                    <h2 class="card-title">Wissendatenbank</h2>
                 </div>
                 <p class="card-description">Anleitungen und Erklärungen zur Verwendung</p>
             </a>
