@@ -597,13 +597,13 @@ $dashboardData = array_values($dashboardData);
                     <div class="detail-stat">
                         <div class="stat-row">
                             <div class="stat-value" style="margin-top: 0;"><?php echo $stats['total_status_messages']; ?></div>
-                            <div class="stat-label-inline">Statusmeldungen gesamt</div>
+                            <div class="stat-label-inline">Statusmeldungen</div>
                         </div>
                     </div>
                     <div class="detail-stat">
                         <div class="stat-row">
                             <div class="stat-value" style="margin-top: 0;"><?php echo $stats['total_backup_jobs']; ?></div>
-                            <div class="stat-label-inline">Backup-Jobs gesamt</div>
+                            <div class="stat-label-inline">Backup-Jobs</div>
                         </div>
                     </div>
                 </div>
