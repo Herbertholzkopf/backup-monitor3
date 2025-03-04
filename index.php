@@ -32,6 +32,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
+// NEUE STATISTIKEN AUS status_duration TABELLE
+$stats = [
+    'total_status_messages' => 0,
+    'total_backup_jobs' => 0,
+    'success' => 0, 
+    'warning' => 0, 
+    'error' => 0
+];
+
+// Holen der Gesamtstatistiken
+$statsQuery = "
+    SELECT 
+        (SELECT COUNT(*) FROM backup_results) AS total_status_messages,
+        (SELECT COUNT(*) FROM backup_jobs) AS total_backup_jobs,
+        (SELECT COUNT(*) FROM status_duration WHERE current_status = 'success') AS success_count,
+        (SELECT COUNT(*) FROM status_duration WHERE current_status = 'warning') AS warning_count,
+        (SELECT COUNT(*) FROM status_duration WHERE current_status = 'error') AS error_count
+";
+
+$statsResult = $conn->query($statsQuery);
+if ($statsResult && $statsRow = $statsResult->fetch_assoc()) {
+    $stats['total_status_messages'] = $statsRow['total_status_messages'];
+    $stats['total_backup_jobs'] = $statsRow['total_backup_jobs'];
+    $stats['success'] = $statsRow['success_count'];
+    $stats['warning'] = $statsRow['warning_count'];
+    $stats['error'] = $statsRow['error_count'];
+}
+
 // Daten für das Dashboard abrufen
 $query = "
     SELECT 
@@ -50,7 +78,7 @@ $query = "
         br.note AS result_note,
         br.size_mb,
         br.duration_minutes,
-        m.content AS mail_content,  /* Neue Zeile */
+        m.content AS mail_content,
         (
             SELECT COUNT(*)
             FROM backup_results br2
@@ -60,7 +88,7 @@ $query = "
     FROM customers c
     LEFT JOIN backup_jobs bj ON c.id = bj.customer_id
     LEFT JOIN backup_results br ON bj.id = br.backup_job_id
-    LEFT JOIN mails m ON br.mail_id = m.id  /* Neue Zeile */
+    LEFT JOIN mails m ON br.mail_id = m.id
     ORDER BY c.name, bj.name, br.date DESC, br.time DESC
 ";
 
@@ -68,7 +96,6 @@ $result = $conn->query($query);
 
 // Daten strukturieren
 $dashboardData = [];
-$stats = ['total' => 0, 'success' => 0, 'warning' => 0, 'error' => 0];
 
 if ($result) {
     while ($row = $result->fetch_assoc()) {
@@ -114,12 +141,6 @@ if ($result) {
                     'runs_count' => $row['runs_count'],
                     'mail_content' => $row['mail_content']
                 ];
-
-                // Statistiken aktualisieren
-                $stats['total']++;
-                if ($row['status']) {
-                    $stats[$row['status']]++;
-                }
             }
         }
     }
@@ -208,7 +229,7 @@ $dashboardData = array_values($dashboardData);
 
         .settings-btn {
             background-color: var(--primary-color);
-            color: white;
+            color: white !important;
             padding: 0.5rem 1rem;
             border-radius: 0.5rem;
             text-decoration: none;
@@ -232,6 +253,10 @@ $dashboardData = array_values($dashboardData);
             border-radius: 0.5rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
+        
+        .stat-card .detailed-stats {
+            padding-top: 0.25rem;
+        }
 
         .stat-label {
             font-size: 0.875rem;
@@ -242,6 +267,30 @@ $dashboardData = array_values($dashboardData);
             font-size: 1.5rem;
             font-weight: bold;
             margin-top: 0.25rem;
+        }
+        
+        /* Neue Styles für die detaillierte Statistik */
+        .detailed-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .detail-stat {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .stat-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 0.75rem;
+        }
+        
+        .stat-label-inline {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            padding-bottom: 0.25rem;
         }
 
         .stat-value.success { color: var(--success-color); }
@@ -481,9 +530,21 @@ $dashboardData = array_values($dashboardData);
 
         <!-- Statistiken -->
         <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-label">Gesamt</div>
-                <div class="stat-value"><?php echo $stats['total']; ?></div>
+            <div class="stat-card overview-card">
+                <div class="detailed-stats" style="margin-top: -0.3rem;">
+                    <div class="detail-stat">
+                        <div class="stat-row">
+                            <div class="stat-value" style="margin-top: 0;"><?php echo $stats['total_status_messages']; ?></div>
+                            <div class="stat-label-inline">Statusmeldungen gesamt</div>
+                        </div>
+                    </div>
+                    <div class="detail-stat">
+                        <div class="stat-row">
+                            <div class="stat-value" style="margin-top: 0;"><?php echo $stats['total_backup_jobs']; ?></div>
+                            <div class="stat-label-inline">Backup-Jobs gesamt</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Erfolgreich</div>
