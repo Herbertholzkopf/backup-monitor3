@@ -669,20 +669,17 @@ def main():
         # HTML-Bericht generieren
         html_report = generate_html_report(status_counts, problematic_backups)
         
-        # Nur E-Mail senden, wenn es problematische Backups gibt
-        if problematic_backups:
-            # E-Mail versenden
-            recipients = [
-                'technik@phd-it-systeme.de',
-                'andreas.koller@phd-it-systeme.de',
-                'dominik.schmidt@phd-it-systeme.de',
-                'joshua.lux@phd-it-systeme.de'
-            ]
-            subject = f"Backup Status Bericht: {status_counts['warning']} Warnungen, {status_counts['error']} Fehler, {status_counts['none']} ohne Status"
-            
-            send_email(subject, html_report, recipients)
-        else:
-            logger.info("Keine problematischen Backups gefunden, keine E-Mail versendet.")
+        # E-Mail immer versenden, unabhängig von problematischen Backups
+        recipients = [
+            'technik@phd-it-systeme.de',
+            'andreas.koller@phd-it-systeme.de',
+            'dominik.schmidt@phd-it-systeme.de',
+            'joshua.lux@phd-it-systeme.de'
+        ]
+        subject = f"Backup Status Bericht: {status_counts['warning']} Warnungen, {status_counts['error']} Fehler, {status_counts['none']} ohne Status"
+        
+        send_email(subject, html_report, recipients)
+        logger.info("Backup Status E-Mail Bericht versendet.")
         
         logger.info("Backup Status E-Mail Bericht erfolgreich abgeschlossen")
     except Exception as e:
