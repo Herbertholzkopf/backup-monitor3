@@ -590,11 +590,46 @@ function getSortIndicator($field, $current_sort_by, $current_sort_order) {
                 flex-direction: column;
             }
         }
+
+        .btn-back {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 0.5rem;
+            color: var(--text-color);
+            text-decoration: none;
+            transition: all 0.15s ease-in-out;
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-back:hover {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+            background-color: rgba(37, 99, 235, 0.05);
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Ändere das bisherige header-Flexbox-Verhalten */
+        header h1 {
+            margin-right: auto;
+        }
+
     </style>
 </head>
 <body>
     <div class="container">
         <header>
+            <a href="../" class="btn-back">
+                <i class="fas fa-arrow-left"></i>
+            </a>
             <h1>Unverarbeitete E-Mails</h1>
         </header>
 
