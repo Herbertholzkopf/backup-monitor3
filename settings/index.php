@@ -18,8 +18,9 @@
         body {
             background-color: #f3f4f6;
             min-height: 100vh;
-            padding: 8rem 2rem;
+            padding: 12rem 2rem;
             padding-bottom: 4rem;
+            position: relative;
         }
 
         .container {
@@ -112,9 +113,42 @@
             text-decoration: none;
         }
 
+        /* Neuer Back-Button Style */
+        .back-button {
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #1f2937;
+            background-color: transparent;
+            transition: background-color 0.2s;
+        }
+
+        .back-button:hover {
+            background-color: rgba(229, 231, 235, 0.5);
+        }
+
+        .back-arrow {
+            font-size: 1.25rem;
+            margin-right: 0.5rem;
+        }
+
+        .back-text {
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
+    <!-- Neuer Back-Button -->
+    <a href="../" class="back-button">
+        <span class="back-arrow">←</span>
+        <span class="back-text">Zurück zum Dashboard</span>
+    </a>
+
     <div class="container">
         <h1>Einstellungen</h1>
         
