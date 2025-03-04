@@ -518,6 +518,68 @@ $dashboardData = array_values($dashboardData);
                 transform: translateX(-50%);
             }
         }
+
+        .search-container {
+        margin-bottom: 2rem;
+        }
+        
+        .search-box {
+            display: flex;
+            width: 100%;
+            position: relative;
+        }
+        
+        #customerSearch {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        #customerSearch:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+        
+        .clear-search-btn {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: none;
+        }
+        
+        .clear-search-btn:hover {
+            color: var(--text-color);
+        }
+        
+        .no-results {
+            background: var(--card-background);
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+        }
+        
+        /* Animation für einblenden/ausblenden der Kunden */
+        .customer-card {
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        
+        .customer-card.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -557,6 +619,14 @@ $dashboardData = array_values($dashboardData);
             <div class="stat-card">
                 <div class="stat-label">Fehler</div>
                 <div class="stat-value error"><?php echo $stats['error']; ?></div>
+            </div>
+        </div>
+
+        <!-- Suchleiste -->
+        <div class="search-container">
+            <div class="search-box">
+                <input type="text" id="customerSearch" placeholder="Nach Kundenname oder Kundennummer suchen..." autocomplete="off">
+                <button id="clearSearch" class="clear-search-btn">&times;</button>
             </div>
         </div>
 
@@ -847,6 +917,84 @@ $dashboardData = array_values($dashboardData);
                 saveButton.disabled = false;
             }
         }
+
+        document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('customerSearch');
+        const clearButton = document.getElementById('clearSearch');
+        const customerCards = document.querySelectorAll('.customer-card');
+        
+        // Zähler für sichtbare Kunden
+        let visibleCounter = document.createElement('div');
+        visibleCounter.className = 'search-counter';
+        visibleCounter.style.color = 'var(--text-secondary)';
+        visibleCounter.style.fontSize = '0.875rem';
+        visibleCounter.style.marginTop = '0.5rem';
+        document.querySelector('.search-container').appendChild(visibleCounter);
+        
+        // Update-Funktion für den Zähler
+        function updateVisibleCounter() {
+            const totalCards = customerCards.length;
+            const visibleCards = document.querySelectorAll('.customer-card:not(.hidden)').length;
+            
+            if (searchInput.value.trim() === '') {
+                visibleCounter.textContent = '';
+            } else {
+                visibleCounter.textContent = `${visibleCards} von ${totalCards} Kunden angezeigt`;
+            }
+            
+            // "Keine Ergebnisse" Anzeige
+            let noResults = document.querySelector('.no-results');
+            
+            if (visibleCards === 0 && searchInput.value.trim() !== '') {
+                if (!noResults) {
+                    noResults = document.createElement('div');
+                    noResults.className = 'no-results';
+                    noResults.textContent = 'Keine Kunden gefunden.';
+                    
+                    // Einfügen nach der Suchleiste und vor der ersten Kundenkarte
+                    const firstCustomerCard = document.querySelector('.customer-card');
+                    if (firstCustomerCard) {
+                        firstCustomerCard.parentNode.insertBefore(noResults, firstCustomerCard);
+                    }
+                }
+            } else if (noResults) {
+                noResults.remove();
+            }
+        }
+        
+        // Suchfunktion
+        function filterCustomers() {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            
+            // Clear-Button anzeigen/verstecken
+            clearButton.style.display = searchTerm ? 'block' : 'none';
+            
+            customerCards.forEach(card => {
+                const customerName = card.querySelector('.customer-name').textContent.toLowerCase();
+                const customerNumber = card.querySelector('.customer-number').textContent.toLowerCase();
+                
+                if (customerName.includes(searchTerm) || customerNumber.includes(searchTerm)) {
+                    card.classList.remove('hidden');
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+            
+            updateVisibleCounter();
+        }
+        
+        // Event-Listener
+        searchInput.addEventListener('input', filterCustomers);
+        
+        clearButton.addEventListener('click', function() {
+            searchInput.value = '';
+            filterCustomers();
+            searchInput.focus();
+        });
+        
+        // Initiales Update
+        filterCustomers();
+    });
     </script>
 
 <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-4 z-10">
