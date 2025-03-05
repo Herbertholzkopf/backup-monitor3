@@ -79,6 +79,8 @@ $query = "
         br.size_mb,
         br.duration_minutes,
         m.content AS mail_content,
+        m.subject AS mail_subject,
+        m.sender_email AS mail_sender,
         (
             SELECT COUNT(*)
             FROM backup_results br2
@@ -139,7 +141,9 @@ if ($result) {
                     'size_mb' => $row['size_mb'],
                     'duration_minutes' => $row['duration_minutes'],
                     'runs_count' => $row['runs_count'],
-                    'mail_content' => $row['mail_content']
+                    'mail_content' => $row['mail_content'],
+                    'mail_subject' => $row['mail_subject'],
+                    'mail_sender' => $row['mail_sender']
                 ];
             }
         }
@@ -503,6 +507,16 @@ $dashboardData = array_values($dashboardData);
             font-size: 0.875rem;
         }
 
+        .mail-modal-info {
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--background-color);
+        }
+
+        .mail-modal-info div {
+            margin: 0.25rem 0;
+        }
+
         @media (max-width: 768px) {
             body {
                 padding: 1rem;
@@ -713,7 +727,11 @@ $dashboardData = array_values($dashboardData);
             const mailContentsMap = new Map();
             results.forEach((result, index) => {
                 if (result.mail_content) {
-                    mailContentsMap.set(`mail-${result.id}`, result.mail_content);
+                    mailContentsMap.set(`mail-${result.id}`, {
+                        content: result.mail_content,
+                        subject: result.mail_subject || '',
+                        sender: result.mail_sender || ''
+                    });
                 }
             });
             
@@ -721,8 +739,8 @@ $dashboardData = array_values($dashboardData);
             
             // Versteckte Div-Container für Mail-Contents
             tooltipContent += '<div id="mail-contents" style="display: none;">';
-            mailContentsMap.forEach((content, id) => {
-                tooltipContent += `<div id="${id}">${content}</div>`;
+            mailContentsMap.forEach((mailData, id) => {
+                tooltipContent += `<div id="${id}" data-mail='${JSON.stringify(mailData)}'></div>`;
             });
             tooltipContent += '</div>';
             
@@ -816,7 +834,11 @@ $dashboardData = array_values($dashboardData);
             const contentElement = document.getElementById(mailId);
             if (!contentElement) return;
             
-            const content = contentElement.innerHTML;
+            const mailData = JSON.parse(contentElement.dataset.mail);
+            const content = mailData.content;
+            const subject = mailData.subject || 'Kein Betreff';
+            const sender = mailData.sender || 'Keine Absenderadresse';
+            
             const mailModal = document.createElement('div');
             mailModal.className = 'mail-modal';
             
@@ -838,6 +860,10 @@ $dashboardData = array_values($dashboardData);
                     <div class="mail-modal-header">
                         <h3>Mail Inhalt</h3>
                         <button onclick="this.closest('.mail-modal').remove()">&times;</button>
+                    </div>
+                    <div class="mail-modal-info">
+                        <div><strong>Betreff:</strong> ${subject}</div>
+                        <div><strong>Absender:</strong> ${sender}</div>
                     </div>
                     <div class="mail-modal-body">
                         ${containsHTML ? 
