@@ -740,10 +740,12 @@ $dashboardData = array_values($dashboardData);
             // Versteckte Div-Container für Mail-Contents
             tooltipContent += '<div id="mail-contents" style="display: none;">';
             mailContentsMap.forEach((mailData, id) => {
-                tooltipContent += `<div id="${id}" data-mail='${JSON.stringify(mailData)}'></div>`;
+                // Convert to base64 to avoid any character escaping issues
+                const base64MailData = btoa(JSON.stringify(mailData));
+                tooltipContent += `<div id="${id}" data-mail-b64="${base64MailData}"></div>`;
             });
             tooltipContent += '</div>';
-            
+                        
             // Füge die Details für jedes Ergebnis hinzu
             results.forEach((result, index) => {
                 tooltipContent += `
@@ -834,11 +836,16 @@ $dashboardData = array_values($dashboardData);
             const contentElement = document.getElementById(mailId);
             if (!contentElement) return;
             
-            const mailData = JSON.parse(contentElement.dataset.mail);
+            // Decode from base64
+            const base64MailData = contentElement.getAttribute('data-mail-b64');
+            const mailData = JSON.parse(atob(base64MailData));
+            
+            // Extract mail data
             const content = mailData.content;
             const subject = mailData.subject || 'Kein Betreff';
             const sender = mailData.sender || 'Keine Absenderadresse';
             
+            // Create mail modal
             const mailModal = document.createElement('div');
             mailModal.className = 'mail-modal';
             
