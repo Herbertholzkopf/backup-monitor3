@@ -73,7 +73,6 @@ CREATE TABLE IF NOT EXISTS backup_results (
 
 -- Datenbank für die Anleitungen und Informationen
 -- enthält den Titel der Anleitung, den Inhalt der Anleitung und die Kategorie, in die die Anleitung gehört
-
 CREATE TABLE IF NOT EXISTS instructions (
     id INT PRIMARY KEY AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
@@ -84,7 +83,6 @@ CREATE TABLE IF NOT EXISTS instructions (
 
 --- Tabelle die angibt, wie lange ein Backup-Job schon den aktuellen Status hat
 --- mögliche Status sind 'success', 'warning', 'error', 'none' (none --> kein Backup)
-
 CREATE TABLE IF NOT EXISTS status_duration (
     id INT PRIMARY KEY AUTO_INCREMENT,
     backup_job_id INT NOT NULL,
@@ -94,4 +92,22 @@ CREATE TABLE IF NOT EXISTS status_duration (
     last_backup_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (backup_job_id) REFERENCES backup_jobs(id) ON DELETE CASCADE
+);
+
+-- Tabelle für die Filter, die auf die Mails angewendet werden
+-- Die Filter können auf die Mailadresse, den Betreff und den Inhalt der Mail angewendet werden
+-- Es kann festgelegt werden, ob alle Suchbegriffe zutreffen müssen oder ob ein Suchbegriff reicht
+-- Es kann festgelegt werden, ob der Filter aktiv ist
+CREATE TABLE IF NOT EXISTS mail_filter (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    search_term_mail VARCHAR(255),
+    search_term_subject VARCHAR(255),
+    search_term_text VARCHAR(255),
+    search_term_text2 VARCHAR(255),
+    match_type ENUM('ALL', 'ANY') DEFAULT 'ANY' COMMENT 'ALL: Alle Suchbegriffe müssen zutreffen, ANY: Ein Suchbegriff reicht',
+    is_active BOOLEAN DEFAULT TRUE,
+    note TEXT,
+    last_used DATETIME,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
