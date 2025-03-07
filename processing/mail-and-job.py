@@ -8,6 +8,8 @@
 
 # Dann wird der job_found Wert in der mails Datenbank auf TRUE gesetzt.
 
+# Neu ist nun noch, dass Veeam Copy Jobs durch eine Suche von "Backup Copy job" mit den passenden Backup-Job gematched wird (siehe GitHub #19)
+
 
 import os
 import sys
@@ -45,23 +47,46 @@ def process_unassigned_mails():
             unprocessed_mails = cursor.fetchall()
 
             for mail in unprocessed_mails:
-                # Passenden Backup-Job suchen
-                cursor.execute("""
-                    SELECT id FROM backup_jobs 
-                    WHERE search_term_mail = %s 
-                    AND (
-                        %s LIKE CONCAT('%%', search_term_subject, '%%')
-                        OR search_term_subject IS NULL
-                    )
-                    AND (
-                        %s LIKE CONCAT('%%', search_term_text, '%%')
-                        OR search_term_text IS NULL
-                    )
-                    AND (
-                        %s LIKE CONCAT('%%', search_term_text2, '%%')
-                        OR search_term_text2 IS NULL
-                    )
-                """, (mail['sender_email'], mail['subject'], mail['content'], mail['content']))
+                # Konstante für den String definieren, um Konsistenz zu gewährleisten
+                backup_copy_job_term = "Backup Copy job"
+                
+                # Prüfen, ob die Mail "Backup Copy job" enthält (berücksichtigt auch Varianten mit Doppelpunkt)
+                contains_backup_copy_job = backup_copy_job_term in mail['content'] or f"{backup_copy_job_term}:" in mail['content']
+                
+                # Passenden Backup-Job suchen mit angepasster Logik
+                if contains_backup_copy_job:
+                    # Wenn "Backup copy Job" im Inhalt ist, muss search_term_text auch "Backup copy Job" enthalten
+                    cursor.execute("""
+                        SELECT id FROM backup_jobs 
+                        WHERE search_term_mail = %s 
+                        AND (
+                            %s LIKE CONCAT('%%', search_term_subject, '%%')
+                            OR search_term_subject IS NULL
+                        )
+                        AND search_term_text LIKE %s
+                        AND (
+                            %s LIKE CONCAT('%%', search_term_text2, '%%')
+                            OR search_term_text2 IS NULL
+                        )
+                    """, (mail['sender_email'], mail['subject'], f'%{backup_copy_job_term}%', mail['content']))
+                else:
+                    # Ursprüngliche Logik für Mails ohne "Backup copy Job"
+                    cursor.execute("""
+                        SELECT id FROM backup_jobs 
+                        WHERE search_term_mail = %s 
+                        AND (
+                            %s LIKE CONCAT('%%', search_term_subject, '%%')
+                            OR search_term_subject IS NULL
+                        )
+                        AND (
+                            %s LIKE CONCAT('%%', search_term_text, '%%')
+                            OR search_term_text IS NULL
+                        )
+                        AND (
+                            %s LIKE CONCAT('%%', search_term_text2, '%%')
+                            OR search_term_text2 IS NULL
+                        )
+                    """, (mail['sender_email'], mail['subject'], mail['content'], mail['content']))
                 
                 matching_job = cursor.fetchone()
                 

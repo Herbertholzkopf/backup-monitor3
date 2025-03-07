@@ -1,7 +1,7 @@
-# PowerShell-Skript zum Erstellen einer Aufgabe, die täglich um 8 Uhr ausgeführt wird
+# PowerShell-Skript zum Erstellen einer Aufgabe in der Windows Aufgabenplanung
 
 # Name der Aufgabe
-$TaskName = "(backup-monitor3) - Calculate daily Backup-Job Status"
+$TaskName = "(backup-monitor3) - Calculate Backup-Jobs Statuses"
 
 # Pfad zum Python-Skript
 $PythonScriptPath = "C:\inetpub\wwwroot\backup-monitor3\processing\mail-reports\daily_status.py"
@@ -14,8 +14,9 @@ $WorkingDirectory = "C:\inetpub\wwwroot\backup-monitor3\processing\mail-reports\
 $PythonExe = "C:\Users\Administrator.PHD\AppData\Local\Programs\Python\Python313\python.exe"
 $Action = New-ScheduledTaskAction -Execute $PythonExe -Argument $PythonScriptPath -WorkingDirectory $WorkingDirectory
 
-# Trigger erstellen: Täglich um 8:00 Uhr
-$Trigger = New-ScheduledTaskTrigger -Daily -At "07:55"
+# Trigger erstellen: Beim Systemstart und dann alle 2 Minuten wiederholen
+$Trigger = New-ScheduledTaskTrigger -AtStartup
+$Trigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)).Repetition
 
 # Einstellungen für den Aufgabenausführer
 # SYSTEM-Konto verwenden, damit die Aufgabe ohne Benutzeranmeldung läuft
