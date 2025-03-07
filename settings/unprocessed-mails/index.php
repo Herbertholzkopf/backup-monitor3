@@ -757,7 +757,7 @@ function getSortIndicator($field, $current_sort_by, $current_sort_order) {
                                         <button class="btn btn-secondary btn-sm" onclick='showAssignModal(<?= $row["id"] ?>)'>
                                             <i class="fas fa-link"></i> Zuweisen
                                         </button>
-                                        <button class="btn btn-danger btn-sm" onclick='confirmDelete(<?= $row["id"] ?>, "<?= addslashes(htmlspecialchars($row["subject"])) ?>")'>
+                                        <button class="btn btn-danger btn-sm" onclick='confirmDelete(<?= $row["id"] ?>, <?= json_encode($row["subject"]) ?>)'>
                                             <i class="fas fa-trash"></i> Löschen
                                         </button>
                                     </td>
