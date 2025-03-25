@@ -1,13 +1,13 @@
 # PowerShell-Skript zum Erstellen einer Aufgabe in der Windows Aufgabenplanung
 
 # Name der Aufgabe
-$TaskName = "(backup-monitor3) - Synology HyperBackup"
+$TaskName = "(backup-monitor3) - Script Runner"
 
 # Pfad zum Python-Skript
-$PythonScriptPath = "C:\inetpub\wwwroot\backup-monitor3\processing\backup-engines\synology-hyperbackup.py"
+$PythonScriptPath = "C:\inetpub\wwwroot\backup-monitor3\processing\script_runner.py"
 
 # Arbeitsverzeichnis
-$WorkingDirectory = "C:\inetpub\wwwroot\backup-monitor3\processing\backup-engines\"
+$WorkingDirectory = "C:\inetpub\wwwroot\backup-monitor3\processing\"
 
 # Befehl zum Ausführen (Python-Interpreter und Skript)
 # Vollständiger Pfad zum Python-Interpreter
@@ -23,7 +23,7 @@ $Trigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) -Repetition
 $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 
 # Weitere Einstellungen
-$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -Hidden -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
 
 # Aufgabe registrieren
 Register-ScheduledTask -TaskName $TaskName -Trigger $Trigger -Action $Action -Principal $Principal -Settings $Settings -Force
