@@ -1,5 +1,5 @@
 MAIL_SERVER = 'imap.ionos.de'
-MAIL_USER = 'mail@test.de'
-MAIL_PASSWORD = '12345678'
+MAIL_USER = 'datensicherung@phd-support.de'
+MAIL_PASSWORD = 'SicheresPasswort123'
 MAIL_FOLDER = 'INBOX'
 MAIL_SERVER_SMTP = 'smtp.ionos.de'

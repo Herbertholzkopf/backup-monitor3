@@ -1,10 +1,25 @@
+# Suche in der mails Datenbank nach mit job_found "true" und result_processed "false"
+# In der backup_results Datenbank dann nach der mail_id suchen
+# Dann in der backup_job_id suchen und überprüfen, ob es der backup_type "Synaxon managed Backup" ist, wenn nicht , überspringen und den nächsten Eintrag in der mails Datenbank prüfen.
+#
+# Wenn dann mal eine Mail gefunden wird, bei der alle Bedingungen erfüllt sind (job_found "true" und result_processed "false" und backup_type "Synaxon managed Backup"), dann:
+#
+# - wenn der Betreff der Mail "Statusbericht" enthält, dann setze result_processed auf True und überspringe die Mail & lösche den Eintrag in der backup_results Tabelle
+#
+# - Betreff nach "erfolgreich" oder "WARNUNGEN" durchsuchen -> setzte den Status in backup_results auf 'success' oder 'warning'
+# - date aus der mail-Tabelle in der backup_results in die Felder date und time speichern
+# - suche in der mail-Tabelle im Text der Mail (content) nach der Zeit "Backup-Dauer 00:10:04" und speichere die Zeit in der backup_results in das Feld "duration_minutes"
+# - suche in der mail-Tabelle im Text der Mail (content) nach dem Plan-Namen "Plan-Name Frankenbreche Stöhr - Backup täglich PC SRV01" und Speichere in der backup_results Tabelle in das note-Feld
+#
+# - Setzt result_processed in der mails-Tabelle auf True
+
 import sys
 import os
 import pymysql
 import re
 from datetime import datetime
 
-# Datenbankverbindung
+# Database connection
 sys.path.append(os.path.join(os.path.dirname(__file__), '../config'))
 import database
 
@@ -25,56 +40,54 @@ def connect_to_database():
 
 def process_duration(content):
     """
-    Extrahiert die Dauer aus einem Text, der Zeitangaben im Format
-    "Dauer: X Stunde(n) Y Minute(n) Z Sekunde(n)" enthält.
-    Berücksichtigt Singular und Plural der Zeiteinheiten.
-    
-    Returns:
-        int: Gesamtdauer in Minuten (gerundet)
+    Extrahiert die Backup-Dauer aus dem E-Mail-Inhalt.
     """
+    # Vereinfachter Ansatz: Finde die Position von "Backup-Dauer" und suche dann 
+    # nach der nächsten Zeitangabe im Format HH:MM:SS
+    backup_dauer_pos = content.find("Backup-Dauer")
+    if backup_dauer_pos > -1:
+        # Betrachte die nächsten 50 Zeichen nach "Backup-Dauer"
+        search_area = content[backup_dauer_pos:backup_dauer_pos + 50]
+        
+        # Finde die erste Zeitangabe im Format HH:MM:SS
+        time_match = re.search(r'(\d{2}):(\d{2}):(\d{2})', search_area)
+        if time_match:
+            hours = int(time_match.group(1))
+            minutes = int(time_match.group(2))
+            seconds = int(time_match.group(3))
+            
+            # Berechne die Gesamtdauer in Minuten
+            total_minutes = hours * 60 + minutes + (1 if seconds >= 30 else 0)
+            return total_minutes
     
-    # Für jedes Zeitsegment eigene Regex mit flexiblem Whitespace
-    hours_regex = r'(\d+)\s*(?:Stunde|Stunden)'
-    minutes_regex = r'(\d+)\s*(?:Minute|Minuten)'
-    seconds_regex = r'(\d+)\s*(?:Sekunde|Sekunden)'
+    # Wenn keine Zeitangabe gefunden wurde, versuche es mit den alten Mustern als Fallback
+    fallback_patterns = [
+        r'Backup-Dauer\s+(\d{2}):(\d{2}):(\d{2})',
+        r'Backup-Dauer.*?(\d{2}):(\d{2}):(\d{2})',
+        r'Backup-Dauer[^\d]*(\d{2}):(\d{2}):(\d{2})'
+    ]
     
-    # Finde jedes Segment einzeln
-    hours_match = re.search(hours_regex, content)
-    minutes_match = re.search(minutes_regex, content)
-    seconds_match = re.search(seconds_regex, content)
+    for pattern in fallback_patterns:
+        match = re.search(pattern, content, re.DOTALL)
+        if match:
+            hours = int(match.group(1))
+            minutes = int(match.group(2))
+            seconds = int(match.group(3))
+            total_minutes = hours * 60 + minutes + (1 if seconds >= 30 else 0)
+            return total_minutes
     
-    # Extrahiere Werte oder setze auf 0
-    hours = int(hours_match.group(1)) if hours_match else 0
-    minutes = int(minutes_match.group(1)) if minutes_match else 0
-    seconds = int(seconds_match.group(1)) if seconds_match else 0
-    
-    # Gesamtminuten berechnen
-    total_minutes = hours * 60 + minutes
-    
-    # Aufrunden wenn Sekunden >= 30
-    if seconds >= 30:
-        total_minutes += 1
-    
-    return total_minutes
-
-def process_size(content):
-    match = re.search(r'Erhöhte Zielgröße: ([\d.]+) ([MGT]B)', content)
-    if match:
-        size = float(match.group(1))
-        unit = match.group(2)
-        # Konvertiere alles in MB
-        if unit == 'GB':
-            return size * 1024
-        elif unit == 'TB':
-            return size * 1024 * 1024
-        return size  # Wenn MB, dann direkt zurückgeben
     return None
 
-def process_synology_mails(connection):
-    print("Starting Synology backup mail processing...")
+def process_plan_name(content):
+    match = re.search(r'Plan-Name ([^\n]+)', content)
+    if match:
+        return match.group(1).strip()
+    return None
+
+def process_synaxon_mails(connection):
+    print("Starting Synaxon backup mail processing...")
     try:
         with connection.cursor() as cursor:
-            # Get unprocessed mails with found jobs
             cursor.execute("""
                 SELECT m.*, br.backup_job_id 
                 FROM mails m
@@ -85,7 +98,6 @@ def process_synology_mails(connection):
             mails = cursor.fetchall()
 
             for mail in mails:
-                # Check if backup job is Synology type
                 cursor.execute("""
                     SELECT backup_type 
                     FROM backup_jobs 
@@ -93,36 +105,58 @@ def process_synology_mails(connection):
                 """, (mail['backup_job_id'],))
                 job = cursor.fetchone()
 
-                if not job or job['backup_type'] != 'Synology HyperBackup':
+                if not job or job['backup_type'] != 'Synaxon managed Backup':
                     continue
 
-                # Process mail content
-                # Prüfe auf "erfolgreich" oder "fehlgeschlagen" im Betreff
-                status = 'success' if 'erfolgreich' in mail['subject'].lower() else 'error'
+                # Neue Prüfung auf "Statusbericht" im Betreff
+                if "Statusbericht" in mail['subject']:
+                    print(f"Statusbericht found in mail ID {mail['id']} - Deleting backup result")
+                    # Backup-Result löschen
+                    cursor.execute("""
+                        DELETE FROM backup_results 
+                        WHERE mail_id = %s
+                    """, (mail['id'],))
+                    
+                    # Mail als verarbeitet markieren
+                    cursor.execute("""
+                        UPDATE mails 
+                        SET result_processed = TRUE 
+                        WHERE id = %s
+                    """, (mail['id'],))
+                    
+                    connection.commit()
+                    continue
+
+                # Originaler Code für die "normale" Verarbeitung
+                status = 'error'
+                subject_lower = mail['subject'].lower()
+                if 'erfolgreich' in subject_lower:
+                    status = 'success'
+                elif 'warnungen' in subject_lower:
+                    status = 'warning'
+
                 print(f"Processing mail ID {mail['id']} - Status: {status}")
                 duration = process_duration(mail['content'])
-                size = process_size(mail['content'])
+                plan_name = process_plan_name(mail['content'])
                 mail_date = mail['date']
 
-                # Update backup_results
                 cursor.execute("""
                     UPDATE backup_results 
                     SET status = %s,
                         date = %s,
                         time = %s,
                         duration_minutes = %s,
-                        size_mb = %s
+                        note = %s
                     WHERE mail_id = %s
                 """, (
                     status,
                     mail_date.date(),
                     mail_date.time(),
                     duration,
-                    size,
+                    plan_name,
                     mail['id']
                 ))
 
-                # Mark mail as processed
                 cursor.execute("""
                     UPDATE mails 
                     SET result_processed = TRUE 
@@ -130,7 +164,7 @@ def process_synology_mails(connection):
                 """, (mail['id'],))
 
                 connection.commit()
-                print(f"Mail ID {mail['id']} processed successfully - Size: {size} MB, Duration: {duration} minutes\n")
+                print(f"Mail ID {mail['id']} processed successfully - Duration: {duration} minutes\n")
 
     except Exception as e:
         print(f"Error processing mails: {e}")
@@ -139,7 +173,7 @@ def process_synology_mails(connection):
 def main():
     connection = connect_to_database()
     try:
-        process_synology_mails(connection)
+        process_synaxon_mails(connection)
     finally:
         connection.close()
 

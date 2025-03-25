@@ -340,10 +340,10 @@ def main():
         
         # E-Mail immer versenden, unabhängig von problematischen Backups
         recipients = [
-            'technik@phd-it-systeme.de',
             'andreas.koller@phd-it-systeme.de',
             'dominik.schmidt@phd-it-systeme.de',
-            'joshua.lux@phd-it-systeme.de'
+            'joshua.lux@phd-it-systeme.de',
+            'technik@phd-it-systeme.de'
         ]
         subject = f"Backup Status Bericht: {status_counts['warning']} Warnungen, {status_counts['error']} Fehler, {status_counts['none']} ohne Status"
         
