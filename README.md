@@ -26,7 +26,7 @@ im **/processing/config**-Verzeichnis muss auch noch die **mail-py** für den Em
 im **/processing/mail-reports/daily_status_mail.py** muss relativ weit unten noch die Empfängeradressen geändert werden
 
 ## Aufgabenplanung / Cron-Jobs
-nahezu alle .py-Skripte müssen über eine Aufgabenplanung oder ähnliches für ein automatisches Ausführen konfiguriert werden.
+Hier eine Liste der Python Skripte und deren Aufgabe:
 | Skript | Dauer | Beschreibung |
 | --- | --- | --- |
 | processing/**mail-to-database.py** | z.B. alle 5 Minuten | schneidet Mails aus dem Postfach aus und speichert sie in die Datenbank |
@@ -36,7 +36,13 @@ nahezu alle .py-Skripte müssen über eine Aufgabenplanung oder ähnliches für 
 | processing/backup-engines/**synology-hyperbackup.py** | z.B. alle 5 Minuten | liest verschiedene Werte aus den Mails aus und speichert einen Status ab |
 | processing/backup-engines/**veeam.py** | z.B. alle 5 Minuten | liest verschiedene Werte aus den Mails aus und speichert einen Status ab |
 | processing/mail-reports/**daily_status.py** | z.B. täglich 7:50 Uhr | speichert, wie lange ein Backupstatus schon existiert den aktuellen Wert hat |
-| processing/mail-reports/**daily_status_mail.py** | z.B. täglich 8:00 Uhr | nutzt die von daily_status.py gespeicherten Werte und schickt sie per Mail |
+| processing/mail-reports/**daily_status_mail.py** | z.B. täglich 8:00 Uhr | nutzt die von daily_status.py gespeicherten Werte und schickt sie per Mail (Mailadressen im Skript anpassen!!!) |
+
+Die Skripte werden durch die **script_runner.py** in der richtigen Reihenfolge für eine saubere Verarbeitung der Backup-Mails ausgeführt.
+Mit der **script_runner-task.ps1** kann unter Windows eine Aufgabe in der Aufgabenplannung erstellt werden, die das ps1 Skirpt automatisch ausführt.
+Das gleiche gilt auch für **daily_status_mail-task.ps1**, was eine Aufgabe für die tägliche Mail-Zusammenfassung erstellt.
+
+## Infos
 
 Für die Skripts wird Python benutzt. Dieses solltest du schon installiert haben.
 Python (python.exe) sollte unter C:\Users\Administrator.PHD\AppData\Local\Programs\Python\Python313 zu finden sein. (beachte, dass 313 die Version ist und bei dir anders sein kann)
