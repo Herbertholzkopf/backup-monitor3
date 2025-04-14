@@ -868,7 +868,7 @@ $dashboardData = array_values($dashboardData);
             mailModal.innerHTML = `
                 <div class="mail-modal-content">
                     <div class="mail-modal-header">
-                        <h3>Mail Inhalt (ID: ${databaseId})</h3>
+                        <h3>Mail Inhalt (ResultID: ${databaseId})</h3>
                         <button onclick="this.closest('.mail-modal').remove()">&times;</button>
                     </div>
                     <div class="mail-modal-info">
