@@ -836,6 +836,9 @@ $dashboardData = array_values($dashboardData);
             const contentElement = document.getElementById(mailId);
             if (!contentElement) return;
             
+            // Extract the database ID from the mailId (removing "mail-" prefix)
+            const databaseId = mailId.replace('mail-', '');
+            
             // Decode from base64
             const base64MailData = contentElement.getAttribute('data-mail-b64');
             const mailData = JSON.parse(atob(base64MailData));
@@ -865,7 +868,7 @@ $dashboardData = array_values($dashboardData);
             mailModal.innerHTML = `
                 <div class="mail-modal-content">
                     <div class="mail-modal-header">
-                        <h3>Mail Inhalt</h3>
+                        <h3>Mail Inhalt (ID: ${databaseId})</h3>
                         <button onclick="this.closest('.mail-modal').remove()">&times;</button>
                     </div>
                     <div class="mail-modal-info">

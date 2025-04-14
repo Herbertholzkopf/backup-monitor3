@@ -940,6 +940,7 @@ if (!isset($_SESSION)) {
                     <button type="button" class="close-modal" onclick="closeModal('deleteModal')">&times;</button>
                 </div>
                 <p>Sind Sie sicher, dass Sie den Backup-Job "<span id="delete_job_name"></span>" löschen möchten?</p>
+                <p><strong>Achtung:</strong> Beim Löschen des Backup-Jobs werden auch alle zugehörigen Backup-Ergebnisse gelöscht. Die verknüpften Mails bleiben jedoch erhalten.</p>
                 <p>Diese Aktion kann nicht rückgängig gemacht werden.</p>
                 <form method="post">
                     <input type="hidden" name="action" value="delete">
