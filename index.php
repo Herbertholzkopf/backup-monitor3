@@ -32,6 +32,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
+// NEUER POST-Handler für Mail-Inhalt
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_mail_content') {
+    $response = ['success' => false];
+    if (isset($_POST['mail_id'])) {
+        $mail_id = (int)$_POST['mail_id'];
+        $sql = "SELECT content, subject, sender_email FROM mails WHERE id = $mail_id";
+        $result = $conn->query($sql);
+        if ($result && $row = $result->fetch_assoc()) {
+            $response['success'] = true;
+            $response['content'] = $row['content'];
+            $response['subject'] = $row['subject'];
+            $response['sender'] = $row['sender_email'];
+        }
+    }
+    header('Content-Type: application/json');
+    echo json_encode($response);
+    exit;
+}
+
 // NEUE STATISTIKEN AUS status_duration TABELLE
 $stats = [
     'total_status_messages' => 0,
@@ -60,7 +79,7 @@ if ($statsResult && $statsRow = $statsResult->fetch_assoc()) {
     $stats['error'] = $statsRow['error_count'];
 }
 
-// Daten für das Dashboard abrufen
+// Daten für das Dashboard abrufen - OHNE Mail-Inhalt für bessere Performance
 $query = "
     SELECT 
         c.id AS customer_id,
@@ -78,9 +97,7 @@ $query = "
         br.note AS result_note,
         br.size_mb,
         br.duration_minutes,
-        m.content AS mail_content,
-        m.subject AS mail_subject,
-        m.sender_email AS mail_sender,
+        br.mail_id,
         (
             SELECT COUNT(*)
             FROM backup_results br2
@@ -90,7 +107,6 @@ $query = "
     FROM customers c
     LEFT JOIN backup_jobs bj ON c.id = bj.customer_id
     LEFT JOIN backup_results br ON bj.id = br.backup_job_id
-    LEFT JOIN mails m ON br.mail_id = m.id
     ORDER BY c.name, bj.name, br.date DESC, br.time DESC
 ";
 
@@ -141,9 +157,7 @@ if ($result) {
                     'size_mb' => $row['size_mb'],
                     'duration_minutes' => $row['duration_minutes'],
                     'runs_count' => $row['runs_count'],
-                    'mail_content' => $row['mail_content'],
-                    'mail_subject' => $row['mail_subject'],
-                    'mail_sender' => $row['mail_sender']
+                    'mail_id' => $row['mail_id']
                 ];
             }
         }
@@ -517,6 +531,12 @@ $dashboardData = array_values($dashboardData);
             margin: 0.25rem 0;
         }
 
+        .loading-spinner {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
         @media (max-width: 768px) {
             body {
                 padding: 1rem;
@@ -723,28 +743,7 @@ $dashboardData = array_values($dashboardData);
             const tooltip = document.getElementById('tooltip');
             const rect = element.getBoundingClientRect();
             
-            // Generiere eine eindeutige ID für jedes Mail-Content Element
-            const mailContentsMap = new Map();
-            results.forEach((result, index) => {
-                if (result.mail_content) {
-                    mailContentsMap.set(`mail-${result.id}`, {
-                        content: result.mail_content,
-                        subject: result.mail_subject || '',
-                        sender: result.mail_sender || ''
-                    });
-                }
-            });
-            
             let tooltipContent = '';
-            
-            // Versteckte Div-Container für Mail-Contents
-            tooltipContent += '<div id="mail-contents" style="display: none;">';
-            mailContentsMap.forEach((mailData, id) => {
-                // Convert to base64 to avoid any character escaping issues
-                const base64MailData = btoa(JSON.stringify(mailData));
-                tooltipContent += `<div id="${id}" data-mail-b64="${base64MailData}"></div>`;
-            });
-            tooltipContent += '</div>';
                         
             // Füge die Details für jedes Ergebnis hinzu
             results.forEach((result, index) => {
@@ -793,8 +792,8 @@ $dashboardData = array_values($dashboardData);
                                 <button class="save-note-btn" onclick="saveNote(${result.id}, this.parentElement.previousElementSibling.value)">
                                     Speichern
                                 </button>
-                                ${result.mail_content ? `
-                                    <button class="show-mail-btn" onclick="showMailContent('mail-${result.id}')">
+                                ${result.mail_id ? `
+                                    <button class="show-mail-btn" onclick="showMailContent(${result.mail_id}, ${result.id})">
                                         Mail anzeigen
                                     </button>
                                 ` : ''}
@@ -824,73 +823,88 @@ $dashboardData = array_values($dashboardData);
             isTooltipLocked = true;
         }
 
-        function escapeJSString(str) {
-        return str.replace(/[\\"']/g, '\\$&')
-                 .replace(/\u0000/g, '\\0')
-                 .replace(/\n/g, '\\n')
-                 .replace(/\r/g, '\\r')
-                 .replace(/[\x00-\x1f\x7f-\x9f]/g, '');
-        }
-
-        function showMailContent(mailId) {
-            const contentElement = document.getElementById(mailId);
-            if (!contentElement) return;
-            
-            // Extract the database ID from the mailId (removing "mail-" prefix)
-            const databaseId = mailId.replace('mail-', '');
-            
-            // Decode from base64
-            const base64MailData = contentElement.getAttribute('data-mail-b64');
-            const mailData = JSON.parse(atob(base64MailData));
-            
-            // Extract mail data
-            const content = mailData.content;
-            const subject = mailData.subject || 'Kein Betreff';
-            const sender = mailData.sender || 'Keine Absenderadresse';
-            
-            // Create mail modal
-            const mailModal = document.createElement('div');
-            mailModal.className = 'mail-modal';
-            
-            // Prüfen ob der Content HTML enthält
-            const containsHTML = /<[a-z][\s\S]*>/i.test(content);
-            
-            // Content entsprechend aufbereiten
-            const processedContent = containsHTML ? 
-                content : 
-                content
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#039;');
-            
-            mailModal.innerHTML = `
+        async function showMailContent(mailId, resultId) {
+            // Erstelle Lade-Modal
+            const loadingModal = document.createElement('div');
+            loadingModal.className = 'mail-modal';
+            loadingModal.innerHTML = `
                 <div class="mail-modal-content">
-                    <div class="mail-modal-header">
-                        <h3>Mail Inhalt (ResultID: ${databaseId})</h3>
-                        <button onclick="this.closest('.mail-modal').remove()">&times;</button>
-                    </div>
-                    <div class="mail-modal-info">
-                        <div><strong>Betreff:</strong> ${subject}</div>
-                        <div><strong>Absender:</strong> ${sender}</div>
-                    </div>
-                    <div class="mail-modal-body">
-                        ${containsHTML ? 
-                            `<div class="html-content">${processedContent}</div>` : 
-                            `<pre>${processedContent}</pre>`
-                        }
+                    <div class="loading-spinner">
+                        <p>Lade Mail-Inhalt...</p>
                     </div>
                 </div>
             `;
-            
-            document.body.appendChild(mailModal);
-            
-            mailModal.addEventListener('click', (e) => {
-                if (e.target === mailModal) {
-                    mailModal.remove();
+            document.body.appendChild(loadingModal);
+
+            try {
+                // Lade Mail-Inhalt per AJAX
+                const formData = new FormData();
+                formData.append('action', 'get_mail_content');
+                formData.append('mail_id', mailId);
+
+                const response = await fetch('', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error('Fehler beim Laden des Mail-Inhalts');
                 }
-            });
+
+                // Entferne Lade-Modal
+                loadingModal.remove();
+
+                // Erstelle Mail-Modal mit Inhalt
+                const mailModal = document.createElement('div');
+                mailModal.className = 'mail-modal';
+                
+                // Prüfen ob der Content HTML enthält
+                const containsHTML = /<[a-z][\s\S]*>/i.test(result.content);
+                
+                // Content entsprechend aufbereiten
+                const processedContent = containsHTML ? 
+                    result.content : 
+                    result.content
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+                
+                mailModal.innerHTML = `
+                    <div class="mail-modal-content">
+                        <div class="mail-modal-header">
+                            <h3>Mail Inhalt (ResultID: ${resultId})</h3>
+                            <button onclick="this.closest('.mail-modal').remove()">&times;</button>
+                        </div>
+                        <div class="mail-modal-info">
+                            <div><strong>Betreff:</strong> ${result.subject || 'Kein Betreff'}</div>
+                            <div><strong>Absender:</strong> ${result.sender || 'Keine Absenderadresse'}</div>
+                        </div>
+                        <div class="mail-modal-body">
+                            ${containsHTML ? 
+                                `<div class="html-content">${processedContent}</div>` : 
+                                `<pre>${processedContent}</pre>`
+                            }
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(mailModal);
+                
+                mailModal.addEventListener('click', (e) => {
+                    if (e.target === mailModal) {
+                        mailModal.remove();
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error loading mail content:', error);
+                loadingModal.remove();
+                alert('Fehler beim Laden des Mail-Inhalts');
+            }
         }
 
         // Neue Funktion für Tastatur-Events
@@ -917,7 +931,7 @@ $dashboardData = array_values($dashboardData);
 
         async function saveNote(resultId, note) {
             const textarea = document.querySelector(`textarea[data-result-id="${resultId}"]`);
-            const saveButton = textarea.nextElementSibling;
+            const saveButton = textarea.nextElementSibling.querySelector('.save-note-btn');
             const originalButtonText = saveButton.textContent;
             
             try {
