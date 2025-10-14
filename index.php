@@ -60,23 +60,51 @@ $stats = [
     'error' => 0
 ];
 
+// Festlegen der zeitlichen Einschränkung für die Abfrage aus der Datenbank (letzte 30 Tage)
+$daysToShow = 30;
+$dateLimit = date('Y-m-d', strtotime("-$daysToShow days"));
+
 // Holen der Gesamtstatistiken
 $statsQuery = "
     SELECT 
-        (SELECT COUNT(*) FROM backup_results) AS total_status_messages,
-        (SELECT COUNT(*) FROM backup_jobs) AS total_backup_jobs,
-        (SELECT COUNT(*) FROM status_duration WHERE current_status = 'success') AS success_count,
-        (SELECT COUNT(*) FROM status_duration WHERE current_status = 'warning') AS warning_count,
-        (SELECT COUNT(*) FROM status_duration WHERE current_status = 'error') AS error_count
+        'total_status_messages' as stat_type, COUNT(*) as value 
+    FROM backup_results
+    WHERE date >= '$dateLimit'
+    
+    UNION ALL
+    
+    SELECT 
+        'total_backup_jobs', COUNT(*) 
+    FROM backup_jobs
+    
+    UNION ALL
+    
+    SELECT 
+        CONCAT('status_', current_status), COUNT(*) 
+    FROM status_duration 
+    WHERE current_status IN ('success', 'warning', 'error')
+    GROUP BY current_status
 ";
 
 $statsResult = $conn->query($statsQuery);
-if ($statsResult && $statsRow = $statsResult->fetch_assoc()) {
-    $stats['total_status_messages'] = $statsRow['total_status_messages'];
-    $stats['total_backup_jobs'] = $statsRow['total_backup_jobs'];
-    $stats['success'] = $statsRow['success_count'];
-    $stats['warning'] = $statsRow['warning_count'];
-    $stats['error'] = $statsRow['error_count'];
+$stats = [
+    'total_status_messages' => 0,
+    'total_backup_jobs' => 0,
+    'status_success' => 0, 
+    'status_warning' => 0, 
+    'status_error' => 0
+];
+
+while ($row = $statsResult->fetch_assoc()) {
+    if ($row['stat_type'] == 'status_success') {
+        $stats['success'] = $row['value'];
+    } elseif ($row['stat_type'] == 'status_warning') {
+        $stats['warning'] = $row['value'];
+    } elseif ($row['stat_type'] == 'status_error') {
+        $stats['error'] = $row['value'];
+    } else {
+        $stats[$row['stat_type']] = $row['value'];
+    }
 }
 
 // Daten für das Dashboard abrufen - OHNE Mail-Inhalt für bessere Performance
@@ -98,15 +126,21 @@ $query = "
         br.size_mb,
         br.duration_minutes,
         br.mail_id,
-        (
-            SELECT COUNT(*)
-            FROM backup_results br2
-            WHERE br2.backup_job_id = bj.id
-            AND br2.date = br.date
-        ) as runs_count
+        rc.runs_count
     FROM customers c
     LEFT JOIN backup_jobs bj ON c.id = bj.customer_id
-    LEFT JOIN backup_results br ON bj.id = br.backup_job_id
+    LEFT JOIN backup_results br ON bj.id = br.backup_job_id 
+        AND br.date >= '$dateLimit'  -- Zeitliche Einschränkung
+    LEFT JOIN (
+        -- Pre-calculate runs_count für alle relevanten Kombinationen
+        SELECT 
+            backup_job_id,
+            date,
+            COUNT(*) as runs_count
+        FROM backup_results
+        WHERE date >= '$dateLimit'
+        GROUP BY backup_job_id, date
+    ) rc ON rc.backup_job_id = bj.id AND rc.date = br.date
     ORDER BY c.name, bj.name, br.date DESC, br.time DESC
 ";
 
