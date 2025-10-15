@@ -21,7 +21,27 @@ if (!isset($_SESSION)) {
     session_start();
 }
 
-// POST-Verarbeitung
+// AJAX Handler für Mail-Content - MUSS VOR dem anderen POST-Handler stehen!
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_mail_content') {
+    $response = ['success' => false];
+    if (isset($_POST['mail_id'])) {
+        $mail_id = (int)$_POST['mail_id'];
+        $sql = "SELECT content, subject, sender_email, created_at FROM mails WHERE id = $mail_id";
+        $result = $conn->query($sql);
+        if ($result && $row = $result->fetch_assoc()) {
+            $response['success'] = true;
+            $response['content'] = $row['content'];
+            $response['subject'] = $row['subject'];
+            $response['sender'] = $row['sender_email'];
+            $response['created_at'] = $row['created_at'];
+        }
+    }
+    header('Content-Type: application/json');
+    echo json_encode($response);
+    exit;
+}
+
+// POST-Verarbeitung für andere Aktionen
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
@@ -110,7 +130,7 @@ if ($page > $total_pages && $total_pages > 0) {
 
 // Daten mit Paginierung und Sortierung abrufen
 $sql = "
-    SELECT id, sender_email, subject, date, created_at, content 
+    SELECT id, sender_email, subject, date, created_at
     $sql_base
     ORDER BY $sort_by $sort_order
     LIMIT $offset, $items_per_page
@@ -746,10 +766,16 @@ function getSortIndicator($field, $current_sort_by, $current_sort_order) {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php while ($row = $result->fetch_assoc()): 
-                                  $mailData = htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8');
+                            <?php while ($row = $result->fetch_assoc()):
+                                $mailData = [
+                                    'id' => $row['id'],
+                                    'sender_email' => $row['sender_email'],
+                                    'subject' => $row['subject'],
+                                    'created_at' => $row['created_at']
+                                ];
+                                $mailDataJson = htmlspecialchars(json_encode($mailData), ENT_QUOTES, 'UTF-8');
                             ?>
-                                <tr onclick='showMailDetails(<?= $mailData ?>)' style="cursor: pointer;">
+                                <tr onclick='showMailDetails(<?= $mailDataJson ?>)' style="cursor: pointer;">
                                     <td><?= htmlspecialchars($row['sender_email']) ?></td>
                                     <td><?= htmlspecialchars($row['subject']) ?></td>
                                     <td><?= date('d.m.Y H:i:s', strtotime($row['created_at'])) ?></td>
@@ -901,37 +927,58 @@ function getSortIndicator($field, $current_sort_by, $current_sort_order) {
         let currentMailId = null;
         
         // Funktion zum Anzeigen der Mail-Details
-        function showMailDetails(mailData) {
+        async function showMailDetails(mailData) {
             currentMailId = mailData.id;
             
+            // Basis-Infos anzeigen (ohne Content)
             document.getElementById('modalSender').textContent = mailData.sender_email;
             document.getElementById('modalSubject').textContent = mailData.subject;
             document.getElementById('modalDate').textContent = new Date(mailData.created_at).toLocaleString('de-DE');
             
-            // Prüfen ob der Content HTML enthält
-            const mailContent = mailData.content || 'Kein Inhalt verfügbar';
-            const containsHTML = /<[a-z][\s\S]*>/i.test(mailContent);
-            
-            // Content Element
+            // Modal öffnen mit Ladeanzeige
             const contentElement = document.getElementById('modalContent');
+            contentElement.innerHTML = '<div style="text-align: center; padding: 2rem; color: #6b7280;">Lade Mail-Inhalt...</div>';
             
-            // Cleanup von vorherigem Inhalt
-            contentElement.innerHTML = '';
+            document.getElementById('mailModal').style.display = 'block';
             
-            if (containsHTML) {
-                // HTML-Inhalt: Als HTML einbinden und in einen Rahmen setzen
-                const htmlContainer = document.createElement('div');
-                htmlContainer.className = 'html-content';
-                htmlContainer.innerHTML = mailContent;
-                contentElement.appendChild(htmlContainer);
-            } else {
-                // Plaintext: Sichere Darstellung mit Escaping
-                const preElement = document.createElement('pre');
-                preElement.textContent = mailContent;
-                contentElement.appendChild(preElement);
+            try {
+                // Mail-Content per AJAX laden
+                const formData = new FormData();
+                formData.append('action', 'get_mail_content');
+                formData.append('mail_id', mailData.id);
+                
+                const response = await fetch('', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error('Fehler beim Laden des Mail-Inhalts');
+                }
+                
+                // Content anzeigen
+                const containsHTML = /<[a-z][\s\S]*>/i.test(result.content);
+                contentElement.innerHTML = '';
+                
+                if (containsHTML) {
+                    const htmlContainer = document.createElement('div');
+                    htmlContainer.className = 'html-content';
+                    htmlContainer.innerHTML = result.content;
+                    contentElement.appendChild(htmlContainer);
+                } else {
+                    const preElement = document.createElement('pre');
+                    preElement.textContent = result.content;
+                    contentElement.appendChild(preElement);
+                }
+                
+            } catch (error) {
+                console.error('Error loading mail content:', error);
+                contentElement.innerHTML = '<div style="color: #dc2626; padding: 1rem;">Fehler beim Laden des Mail-Inhalts</div>';
             }
-
-            // Event-Listener für die Modal-Buttons hinzufügen
+            
+            // Event-Listener für die Modal-Buttons
             document.getElementById('modalAssignBtn').onclick = function() {
                 closeModal('mailModal');
                 showAssignModal(currentMailId);
@@ -939,12 +986,9 @@ function getSortIndicator($field, $current_sort_by, $current_sort_order) {
             
             document.getElementById('modalDeleteBtn').onclick = function() {
                 closeModal('mailModal');
-                // Mail-Betreff für die Bestätigung holen
                 const subject = document.getElementById('modalSubject').textContent;
                 confirmDelete(currentMailId, subject);
             };
-            
-            document.getElementById('mailModal').style.display = 'block';
         }
         
         // Funktion zum Anzeigen des Zuweisungs-Modals

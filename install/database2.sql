@@ -29,3 +29,15 @@ ALTER TABLE customers ADD INDEX idx_number (number);
 
 -- Für Status-Duration Queries
 ALTER TABLE status_duration ADD INDEX idx_job_status (backup_job_id, current_status);
+
+-- Kritisch für unprocessed-mails
+ALTER TABLE mails ADD INDEX idx_result_processed (result_processed);
+ALTER TABLE mails ADD INDEX idx_job_processed (job_found, result_processed);
+
+-- Für die Suche
+ALTER TABLE mails ADD INDEX idx_sender (sender_email);
+ALTER TABLE mails ADD INDEX idx_subject (subject(100));
+ALTER TABLE mails ADD INDEX idx_created (created_at);
+
+-- Kombinierter Index für die häufigste Abfrage
+ALTER TABLE mails ADD INDEX idx_processed_created (result_processed, created_at DESC);
