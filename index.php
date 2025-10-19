@@ -1006,6 +1006,13 @@ $dashboardData = array_values($dashboardData);
         const searchInput = document.getElementById('customerSearch');
         const clearButton = document.getElementById('clearSearch');
         const customerCards = document.querySelectorAll('.customer-card');
+
+        // Prefill search from URL query parameter "?search=..."
+        const params = new URLSearchParams(window.location.search);
+        const prefill = params.get('search');
+        if (prefill) {
+            searchInput.value = prefill;
+        }
         
         // Zähler für sichtbare Kunden
         let visibleCounter = document.createElement('div');
