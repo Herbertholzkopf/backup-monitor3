@@ -1,0 +1,33 @@
+<h2>Mailstore Archivierung</h2>
+ <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; border: 1px solid #d1d5db; margin-bottom: 20px;">
+     <tr>
+         <th style="border: 1px solid #d1d5db; padding: 8px; width: 150px;">Bezeichnung</th>
+         <th style="border: 1px solid #d1d5db; padding: 8px; width: 300px;">Wert</th>
+         <th style="border: 1px solid #d1d5db; padding: 8px; width: 300px;">Beispiel</th>
+     </tr>
+     <tr>
+         <td style="border: 1px solid #d1d5db; padding: 8px;">Name</td>
+         <td style="border: 1px solid #d1d5db; padding: 8px;"><em>frei wählbar</em></td>
+         <td style="border: 1px solid #d1d5db; padding: 8px;">Mailstore Archivierung</td>
+     </tr>
+     <tr>
+         <td style="border: 1px solid #d1d5db; padding: 8px;">Backup-Typ</td>
+         <td style="border: 1px solid #d1d5db; padding: 8px;">MailStore</td>
+         <td style="border: 1px solid #d1d5db; padding: 8px;"></td>
+     </tr>
+     <tr>
+         <td style="border: 1px solid #d1d5db; padding: 8px;">E-Mail Suchwort</td>
+         <td style="border: 1px solid #d1d5db; padding: 8px;"><em>Mailadresse</em></td>
+         <td style="border: 1px solid #d1d5db; padding: 8px;">e.kohl@phd-support.de</td>
+     </tr>
+     <tr>
+         <td style="border: 1px solid #d1d5db; padding: 8px;">Betreff Suchwort</td>
+         <td style="border: 1px solid #d1d5db; padding: 8px;">MailStore Server Status Report</td>
+         <td style="border: 1px solid #d1d5db; padding: 8px;"></td>
+     </tr>
+     <tr>
+         <td style="border: 1px solid #d1d5db; padding: 8px;">Text Suchwort 1</td>
+         <td style="border: 1px solid #d1d5db; padding: 8px;"><em>Name des Servers</em></td>
+         <td style="border: 1px solid #d1d5db; padding: 8px;">SRV_APP</td>
+     </tr>
+ </table>

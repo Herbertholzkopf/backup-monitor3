@@ -33,8 +33,9 @@ SCRIPTS_TO_RUN = [
     # Skripte im Unterordner "backup-engines"
     (os.path.join("backup-engines", "veeam.py"), 0.3),
     (os.path.join("backup-engines", "synaxon-cloud.py"), 0.3),
-    (os.path.join("backup-engines", "proxmox.py"), 0.3),
     (os.path.join("backup-engines", "synology-hyperbackup.py"), 0.3),
+    (os.path.join("backup-engines", "mailstore.py"), 0.3),
+    (os.path.join("backup-engines", "proxmox.py"), 0.3),
     (os.path.join("backup-engines", "iperius.py"), 0.3),
     (os.path.join("backup-engines", "acronis.py"), 0.3),
     
@@ -104,7 +105,7 @@ def main():
             successful_scripts += 1
         
         # Pause einlegen, außer nach dem letzten Skript
-        if pause_seconds > 0:
+        if pause_seconds > 0 and i < total_scripts - 1:
             logging.info(f"Warte {pause_seconds} Sekunden...")
             time.sleep(pause_seconds)
     
