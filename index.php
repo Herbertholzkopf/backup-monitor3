@@ -773,6 +773,15 @@ $dashboardData = array_values($dashboardData);
         let activeTooltip = null;
         let isTooltipLocked = false;
 
+        // Funktion zur Umrechnung von MB in GB mit 2 Nachkommastellen
+        function formatSize(sizeMB) {
+            if (!sizeMB) return '';
+            const sizeGB = sizeMB / 1024;
+            return sizeGB >= 1 
+                ? `${sizeGB.toFixed(2)} GB`
+                : `${parseFloat(sizeMB).toFixed(2)} MB`;
+        }
+
         function showTooltip(element, results) {
             const tooltip = document.getElementById('tooltip');
             const rect = element.getBoundingClientRect();
@@ -805,7 +814,7 @@ $dashboardData = array_values($dashboardData);
                         ${result.size_mb ? `
                             <div class="detail-row">
                                 <span class="detail-label">Größe:</span>
-                                <span>${parseFloat(result.size_mb).toFixed(2)} MB</span>
+                                <span>${formatSize(result.size_mb)}</span>
                             </div>
                         ` : ''}
                         ${result.duration_minutes ? `
