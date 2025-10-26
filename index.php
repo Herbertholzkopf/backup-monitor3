@@ -437,6 +437,19 @@ $dashboardData = array_values($dashboardData);
             z-index: 10;
         }
 
+        .hover-date {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            display: none;
+        }
+
         .result-details {
             margin-bottom: 1rem;
             padding-bottom: 1rem;
@@ -745,6 +758,7 @@ $dashboardData = array_values($dashboardData);
                                 $groupedResult = $groupedResults[$date];
                                 ?>
                                 <div class="result-square" 
+                                    data-date="<?php echo $date; ?>"
                                     style="background-color: <?php 
                                         echo $groupedResult['status'] === 'success' ? 'var(--success-color)' : 
                                             ($groupedResult['status'] === 'warning' ? 'var(--warning-color)' : 
@@ -1094,12 +1108,45 @@ $dashboardData = array_values($dashboardData);
         
         // Initiales Update
         filterCustomers();
+
+        // Hover-Tooltip erstellen
+        const hoverTooltip = document.createElement('div');
+        hoverTooltip.className = 'hover-date';
+        document.body.appendChild(hoverTooltip);
+
+        // Event-Listener für alle result-square Elemente
+        document.addEventListener('mouseover', function(e) {
+            if (e.target.classList.contains('result-square')) {
+                const date = e.target.dataset.date;
+                if (date) {
+                    const dateObj = new Date(date);
+                    const weekday = dateObj.toLocaleDateString('de-DE', { weekday: 'long' });
+                    const formattedDate = dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    
+                    hoverTooltip.textContent = `${weekday} - ${formattedDate}`;
+                    hoverTooltip.style.display = 'block';
+                    
+                    // Position berechnen mit Scroll-Offset
+                    const rect = e.target.getBoundingClientRect();
+                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                    
+                    hoverTooltip.style.left = (rect.left + window.scrollX) + 'px';
+                    hoverTooltip.style.top = (rect.top + scrollTop - 25) + 'px';
+                }
+            }
+        });
+
+        document.addEventListener('mouseout', function(e) {
+            if (e.target.classList.contains('result-square')) {
+                hoverTooltip.style.display = 'none';
+            }
+        });
     });
     </script>
 
 <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-4 z-10">
     <div class="container mx-auto text-center">
-        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller - 45h Arbeitszeit (Stand 23.10.2025)</a>
+        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller - 46h Arbeitszeit (Stand 26.10.2025)</a>
     </div>
 </footer>
 
