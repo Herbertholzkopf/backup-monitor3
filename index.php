@@ -661,6 +661,11 @@ $dashboardData = array_values($dashboardData);
         .customer-card.hidden {
             display: none;
         }
+        
+        /* Animation für einblenden/ausblenden einzelner Jobs */
+        .job-container.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -706,7 +711,7 @@ $dashboardData = array_values($dashboardData);
         <!-- Suchleiste -->
         <div class="search-container">
             <div class="search-box">
-                <input type="text" id="customerSearch" placeholder="Nach Kundenname oder Kundennummer suchen..." autocomplete="off">
+                <input type="text" id="customerSearch" placeholder="Nach Kunde, Backup-Job oder Backup-Typ suchen..." autocomplete="off">
                 <button id="clearSearch" class="clear-search-btn">&times;</button>
             </div>
         </div>
@@ -1063,7 +1068,7 @@ $dashboardData = array_values($dashboardData);
                 if (!noResults) {
                     noResults = document.createElement('div');
                     noResults.className = 'no-results';
-                    noResults.textContent = 'Keine Kunden gefunden.';
+                    noResults.textContent = 'Keine Ergebnisse gefunden.';
                     
                     // Einfügen nach der Suchleiste und vor der ersten Kundenkarte
                     const firstCustomerCard = document.querySelector('.customer-card');
@@ -1086,11 +1091,37 @@ $dashboardData = array_values($dashboardData);
             customerCards.forEach(card => {
                 const customerName = card.querySelector('.customer-name').textContent.toLowerCase();
                 const customerNumber = card.querySelector('.customer-number').textContent.toLowerCase();
+                const jobs = card.querySelectorAll('.job-container');
                 
-                if (customerName.includes(searchTerm) || customerNumber.includes(searchTerm)) {
+                // Prüfen ob Suchbegriff im Kundennamen oder Kundennummer
+                const customerMatches = customerName.includes(searchTerm) || customerNumber.includes(searchTerm);
+                
+                if (customerMatches || searchTerm === '') {
+                    // Kunde passt oder keine Suche -> alle Jobs anzeigen
                     card.classList.remove('hidden');
+                    jobs.forEach(job => job.classList.remove('hidden'));
                 } else {
-                    card.classList.add('hidden');
+                    // Kunde passt nicht -> Jobs einzeln prüfen
+                    let hasMatchingJob = false;
+                    
+                    jobs.forEach(job => {
+                        const jobName = job.querySelector('.job-name').textContent.toLowerCase();
+                        const jobType = job.querySelector('.job-type').textContent.toLowerCase();
+                        
+                        if (jobName.includes(searchTerm) || jobType.includes(searchTerm)) {
+                            job.classList.remove('hidden');
+                            hasMatchingJob = true;
+                        } else {
+                            job.classList.add('hidden');
+                        }
+                    });
+                    
+                    // Karte nur anzeigen wenn mindestens ein Job passt
+                    if (hasMatchingJob) {
+                        card.classList.remove('hidden');
+                    } else {
+                        card.classList.add('hidden');
+                    }
                 }
             });
             
@@ -1146,7 +1177,7 @@ $dashboardData = array_values($dashboardData);
 
 <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-4 z-10">
     <div class="container mx-auto text-center">
-        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller - 46h Arbeitszeit (Stand 26.10.2025)</a>
+        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller - 49h Arbeitszeit (Stand 18.12.2025)</a>
     </div>
 </footer>
 

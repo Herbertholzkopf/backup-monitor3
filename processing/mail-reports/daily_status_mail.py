@@ -133,7 +133,7 @@ def generate_email_safe_html(status_counts, problematic_backups):
                         <!-- Dashboard Button -->
                         <tr>
                             <td style="padding: 0 20px 10px; text-align: right;">
-                                <a href="http://192.168.47.14/backup-monitor3" style="display: inline-block; background-color: #2563EB; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 500; margin-top: 10px;">Zum Backup-Dashboard</a>
+                                <a href="https://backup.phd-it.de" style="display: inline-block; background-color: #2563EB; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 500; margin-top: 10px;">Zum Backup-Dashboard</a>
                             </td>
                         </tr>
                         

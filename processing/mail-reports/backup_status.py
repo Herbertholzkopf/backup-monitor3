@@ -3,7 +3,7 @@
 # indem es sich die letzte Aktualisierung (Datum & Status) abruft und diese mit dem aktuellen 
 # Status vergleicht und dann den "days_in_status" passend erhöht.
 # (falls das Skript einen Tag lang nicht ausgeführt worden ist und an diesem Tag ein anderer 
-# Status war, wird dieser der Counter nicht zurückgesetzt!!!)
+# Status war, wird der Counter nicht zurückgesetzt!!!)
 
 #!/usr/bin/env python3
 import os

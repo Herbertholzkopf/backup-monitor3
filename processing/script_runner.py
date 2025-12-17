@@ -38,6 +38,7 @@ SCRIPTS_TO_RUN = [
     (os.path.join("backup-engines", "proxmox.py"), 0.3),
     (os.path.join("backup-engines", "iperius.py"), 0.3),
     (os.path.join("backup-engines", "acronis.py"), 0.3),
+    (os.path.join("backup-engines", "synaxon-c2c.py"), 0.3),
     
     # weitere Skripte
     (os.path.join("mail-reports", "backup_status.py"), 0.3),
