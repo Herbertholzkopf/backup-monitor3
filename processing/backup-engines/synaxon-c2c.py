@@ -91,25 +91,43 @@ def determine_status(counts):
 def extract_report_date(content):
     """
     Extract the report date from the content.
-    Format in mail: "Daily Report17 December 2025" or "Daily Report17\nDecember 2025"
+    Supports two formats:
+    - Mail1 format (plain text): "Daily Report17 December 2025" or "Daily Report17\nDecember 2025"
+    - Mail2 format (HTML only): "<b>Daily Report</b>...18 December 2025" (date in separate cell)
     Returns a datetime object or None.
     """
-    # Pattern for combined format (Daily Report + date)
-    date_pattern = r'Daily\s*Report\s*(\d{1,2})\s*(\w+)\s*(\d{4})'
-    match = re.search(date_pattern, content, re.IGNORECASE)
+    day = None
+    month_str = None
+    year = None
     
-    if match:
-        day = int(match.group(1))
-        month_str = match.group(2)
-        year = int(match.group(3))
+    # Month mapping
+    months = {
+        'january': 1, 'february': 2, 'march': 3, 'april': 4,
+        'may': 5, 'june': 6, 'july': 7, 'august': 8,
+        'september': 9, 'october': 10, 'november': 11, 'december': 12
+    }
+    
+    # Try HTML format first (works for both mail formats)
+    # Pattern: <b>Daily Report</b> followed by date somewhere after
+    html_pattern = r'<b>Daily Report</b>.*?(\d{1,2})\s+(\w+)\s+(\d{4})'
+    html_match = re.search(html_pattern, content, re.DOTALL | re.IGNORECASE)
+    
+    if html_match:
+        day = int(html_match.group(1))
+        month_str = html_match.group(2)
+        year = int(html_match.group(3))
+    else:
+        # Fallback: Try plain text format (Daily Report + date combined)
+        plain_pattern = r'Daily\s*Report\s*(\d{1,2})\s*(\w+)\s*(\d{4})'
+        plain_match = re.search(plain_pattern, content, re.IGNORECASE)
         
-        # Convert month name to number
-        months = {
-            'january': 1, 'february': 2, 'march': 3, 'april': 4,
-            'may': 5, 'june': 6, 'july': 7, 'august': 8,
-            'september': 9, 'october': 10, 'november': 11, 'december': 12
-        }
-        
+        if plain_match:
+            day = int(plain_match.group(1))
+            month_str = plain_match.group(2)
+            year = int(plain_match.group(3))
+    
+    # Convert to datetime if we found all parts
+    if day and month_str and year:
         month = months.get(month_str.lower())
         if month:
             try:
