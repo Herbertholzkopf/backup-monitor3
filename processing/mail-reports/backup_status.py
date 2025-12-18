@@ -36,6 +36,18 @@ def get_all_backup_jobs(connection):
         cursor.execute("SELECT id FROM backup_jobs")
         return [job['id'] for job in cursor.fetchall()]
 
+def get_job_ignore_hours(connection, job_id):
+    """Den ignore_no_status_updates_for_x_hours Wert für einen bestimmten Job holen"""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT ignore_no_status_updates_for_x_hours FROM backup_jobs WHERE id = %s",
+            (job_id,)
+        )
+        result = cursor.fetchone()
+        if result and result['ignore_no_status_updates_for_x_hours'] is not None:
+            return result['ignore_no_status_updates_for_x_hours']
+        return 24  # Standardwert falls nicht gesetzt
+
 def get_status_for_period(connection, job_id, start_date, end_date):
     """Den neuesten Backup-Status für einen bestimmten Job und Zeitraum holen"""
     with connection.cursor() as cursor:
@@ -100,10 +112,17 @@ def update_status_duration(connection, job_id, current_status, days_in_status, l
 def analyze_job_status(connection, job_id):
     """Die Statushistorie für einen bestimmten Backup-Job analysieren"""
     today = datetime.date.today()
+    now = datetime.datetime.now()
     
-    # Status der letzten 24 Stunden prüfen
-    yesterday = today - datetime.timedelta(days=1)
-    latest_status = get_status_for_period(connection, job_id, yesterday, today)
+    # Individuellen ignore_hours Wert für diesen Job holen
+    ignore_hours = get_job_ignore_hours(connection, job_id)
+    
+    # Zeitraum basierend auf ignore_hours berechnen
+    lookback_time = now - datetime.timedelta(hours=ignore_hours)
+    lookback_date = lookback_time.date()
+    
+    # Status im konfigurierten Zeitraum prüfen
+    latest_status = get_status_for_period(connection, job_id, lookback_date, today)
     
     if latest_status is None:
         current_status = 'none'
@@ -156,7 +175,8 @@ def analyze_job_status(connection, job_id):
         'job_id': job_id,
         'status': current_status,
         'days': days_in_status,
-        'last_backup_date': last_backup_date
+        'last_backup_date': last_backup_date,
+        'ignore_hours': ignore_hours
     }
 
 def main():
@@ -175,7 +195,7 @@ def main():
                 'none': 'Kein Status'
             }.get(result['status'], result['status'])
             
-            print(f"Job {result['job_id']}: {status_text} seit {result['days']} Tagen")
+            print(f"Job {result['job_id']}: {status_text} seit {result['days']} Tagen (Toleranz: {result['ignore_hours']}h)")
         
         print("Analyse abgeschlossen!")
     finally:

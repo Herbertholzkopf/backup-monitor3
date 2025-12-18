@@ -76,7 +76,7 @@ def get_problematic_backups(conn):
     FROM status_duration sd
     JOIN backup_jobs bj ON sd.backup_job_id = bj.id
     JOIN customers c ON bj.customer_id = c.id
-    WHERE sd.current_status != 'success'
+    WHERE sd.current_status != 'success' AND bj.include_in_report = TRUE
     ORDER BY 
         CASE 
             WHEN sd.current_status = 'none' THEN 1

@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS backup_jobs (
     search_term_subject VARCHAR(255),
     search_term_text VARCHAR(255),
     search_term_text2 VARCHAR(255),
+    include_in_report BOOLEAN NOT NULL DEFAULT TRUE,
+    ignore_no_status_updates_for_x_hours INT DEFAULT 24,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );

@@ -29,11 +29,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $search_term_subject = $conn->real_escape_string($_POST['search_term_subject']);
                 $search_term_text = $conn->real_escape_string($_POST['search_term_text']);
                 $search_term_text2 = $conn->real_escape_string($_POST['search_term_text2'] ?? '');
+                $include_in_report = isset($_POST['include_in_report']) ? 1 : 0;
+                $ignore_hours = !empty($_POST['ignore_no_status_updates_for_x_hours']) ? (int)$_POST['ignore_no_status_updates_for_x_hours'] : 'NULL';
                 
                 $sql = "INSERT INTO backup_jobs (customer_id, name, note, backup_type, 
-                        search_term_mail, search_term_subject, search_term_text, search_term_text2) 
+                        search_term_mail, search_term_subject, search_term_text, search_term_text2,
+                        include_in_report, ignore_no_status_updates_for_x_hours) 
                         VALUES ($customer_id, '$name', '$note', '$backup_type', 
-                        '$search_term_mail', '$search_term_subject', '$search_term_text', '$search_term_text2')";
+                        '$search_term_mail', '$search_term_subject', '$search_term_text', '$search_term_text2',
+                        $include_in_report, $ignore_hours)";
                 $conn->query($sql);
                 
                 $_SESSION['message'] = "Backup-Job erfolgreich erstellt.";
@@ -50,6 +54,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $search_term_subject = $conn->real_escape_string($_POST['search_term_subject']);
                 $search_term_text = $conn->real_escape_string($_POST['search_term_text']);
                 $search_term_text2 = $conn->real_escape_string($_POST['search_term_text2'] ?? '');
+                $include_in_report = isset($_POST['include_in_report']) ? 1 : 0;
+                $ignore_hours = !empty($_POST['ignore_no_status_updates_for_x_hours']) ? (int)$_POST['ignore_no_status_updates_for_x_hours'] : 'NULL';
 
                 $sql = "UPDATE backup_jobs SET 
                         customer_id=$customer_id, 
@@ -59,7 +65,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         search_term_mail='$search_term_mail',
                         search_term_subject='$search_term_subject',
                         search_term_text='$search_term_text',
-                        search_term_text2='$search_term_text2'
+                        search_term_text2='$search_term_text2',
+                        include_in_report=$include_in_report,
+                        ignore_no_status_updates_for_x_hours=$ignore_hours
                         WHERE id=$id";
                 $conn->query($sql);
                 
@@ -546,6 +554,83 @@ if (!isset($_SESSION)) {
             overflow-y: auto;
         }
 
+        .form-section-divider {
+            margin: 1.5rem 0 1rem 0;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .toggle-switch label {
+            flex: 1;
+            margin-bottom: 0;
+            font-weight: 500;
+            color: var(--text-color);
+        }
+
+        .toggle-switch input[type="checkbox"] {
+            width: 44px;
+            height: 24px;
+            appearance: none;
+            background-color: var(--border-color);
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch input[type="checkbox"]:checked {
+            background-color: var(--success-color);
+        }
+
+        .toggle-switch input[type="checkbox"]::before {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: white;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s;
+        }
+
+        .toggle-switch input[type="checkbox"]:checked::before {
+            transform: translateX(20px);
+        }
+
+        .form-hint {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+            line-height: 1.4;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            transition: border-color 0.15s ease-in-out;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
         .modal-header {
             display: flex;
             justify-content: space-between;
@@ -865,6 +950,21 @@ if (!isset($_SESSION)) {
                         <label for="search_term_text2">Text Suchwort 2 (optional):</label>
                         <input type="text" id="search_term_text2" name="search_term_text2">
                     </div>
+                    
+                    <div class="form-section-divider">Einstellungen für Mail-Berichte</div>
+                    
+                    <div class="form-group">
+                        <div class="toggle-switch">
+                            <label for="include_in_report">In Mail-Berichten auflisten</label>
+                            <input type="checkbox" id="include_in_report" name="include_in_report" checked>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="ignore_no_status_updates_for_x_hours">Status-Timeout (Stunden):</label>
+                        <input type="number" id="ignore_no_status_updates_for_x_hours" name="ignore_no_status_updates_for_x_hours" min="0" value="24" placeholder="standardmäßig 24 Stunden">
+                        <p class="form-hint">Dieser Wert legt fest, wie lange ein Backup-Job seinen zuletzt bekannten Status behält, bevor er als „kein Status" angezeigt wird. Standardmäßig 24 Stunden.</p>
+                    </div>
+                    
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('addModal')">Abbrechen</button>
                         <button type="submit" class="btn btn-primary">Backup-Job anlegen</button>
@@ -924,6 +1024,21 @@ if (!isset($_SESSION)) {
                         <label for="edit_search_term_text2">Text Suchwort 2 (optional):</label>
                         <input type="text" id="edit_search_term_text2" name="search_term_text2">
                     </div>
+                    
+                    <div class="form-section-divider">Einstellungen für Mail-Berichte</div>
+                    
+                    <div class="form-group">
+                        <div class="toggle-switch">
+                            <label for="edit_include_in_report">In Mail-Berichten auflisten</label>
+                            <input type="checkbox" id="edit_include_in_report" name="include_in_report">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_ignore_no_status_updates_for_x_hours">Status-Timeout (Stunden):</label>
+                        <input type="number" id="edit_ignore_no_status_updates_for_x_hours" name="ignore_no_status_updates_for_x_hours" min="0" placeholder="standardmäßig 24 Stunden">
+                        <p class="form-hint">Dieser Wert legt fest, wie lange ein Backup-Job seinen zuletzt bekannten Status behält, bevor er als „kein Status" angezeigt wird. Standardmäßig 24 Stunden.</p>
+                    </div>
+                    
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('editModal')">Abbrechen</button>
                         <button type="submit" class="btn btn-primary">Änderungen speichern</button>
@@ -971,6 +1086,8 @@ if (!isset($_SESSION)) {
             document.getElementById('edit_search_term_subject').value = job.search_term_subject;
             document.getElementById('edit_search_term_text').value = job.search_term_text;
             document.getElementById('edit_search_term_text2').value = job.search_term_text2 || '';
+            document.getElementById('edit_include_in_report').checked = job.include_in_report == 1;
+            document.getElementById('edit_ignore_no_status_updates_for_x_hours').value = job.ignore_no_status_updates_for_x_hours || '';
             document.getElementById('editModal').style.display = 'block';
         }
         

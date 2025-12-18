@@ -107,7 +107,15 @@ while ($row = $statsResult->fetch_assoc()) {
     }
 }
 
-// Daten für das Dashboard abrufen - OHNE Mail-Inhalt für bessere Performance
+// Alle verfügbaren Backup-Typen abrufen für den Filter
+$backupTypesQuery = "SELECT DISTINCT backup_type FROM backup_jobs WHERE backup_type IS NOT NULL AND backup_type != '' ORDER BY backup_type";
+$backupTypesResult = $conn->query($backupTypesQuery);
+$backupTypes = [];
+while ($row = $backupTypesResult->fetch_assoc()) {
+    $backupTypes[] = $row['backup_type'];
+}
+
+// Daten für das Dashboard abrufen - MIT current_status aus status_duration
 $query = "
     SELECT 
         c.id AS customer_id,
@@ -126,13 +134,13 @@ $query = "
         br.size_mb,
         br.duration_minutes,
         br.mail_id,
-        rc.runs_count
+        rc.runs_count,
+        sd.current_status AS job_current_status
     FROM customers c
     LEFT JOIN backup_jobs bj ON c.id = bj.customer_id
     LEFT JOIN backup_results br ON bj.id = br.backup_job_id 
-        AND br.date >= '$dateLimit'  -- Zeitliche Einschränkung
+        AND br.date >= '$dateLimit'
     LEFT JOIN (
-        -- Pre-calculate runs_count für alle relevanten Kombinationen
         SELECT 
             backup_job_id,
             date,
@@ -141,6 +149,7 @@ $query = "
         WHERE date >= '$dateLimit'
         GROUP BY backup_job_id, date
     ) rc ON rc.backup_job_id = bj.id AND rc.date = br.date
+    LEFT JOIN status_duration sd ON bj.id = sd.backup_job_id
     ORDER BY c.name, bj.name, br.date DESC, br.time DESC
 ";
 
@@ -176,6 +185,7 @@ if ($result) {
                     'job_id' => $row['job_id'],
                     'job_name' => $row['job_name'],
                     'backup_type' => $row['backup_type'],
+                    'current_status' => $row['job_current_status'] ?? 'none',
                     'results' => []
                 ];
             }
@@ -213,8 +223,11 @@ $dashboardData = array_values($dashboardData);
             --primary-color: #2563eb;
             --primary-hover: #1d4ed8;
             --success-color: #059669;
+            --success-light: #d1fae5;
             --warning-color: #d97706;
+            --warning-light: #fef3c7;
             --error-color: #dc2626;
+            --error-light: #fee2e2;
             --background-color: #f3f4f6;
             --card-background: #ffffff;
             --border-color: #e5e7eb;
@@ -348,6 +361,68 @@ $dashboardData = array_values($dashboardData);
         .stat-value.success { color: var(--success-color); }
         .stat-value.warning { color: var(--warning-color); }
         .stat-value.error { color: var(--error-color); }
+
+        /* ===== ANKLICKBARE STATUS-KARTEN ===== */
+        .stat-card.clickable {
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+            position: relative;
+        }
+        
+        .stat-card.clickable:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .stat-card.clickable.active-filter {
+            border-width: 2px;
+            border-style: solid;
+        }
+        
+        .stat-card.clickable.active-filter.success-card {
+            border-color: var(--success-color);
+            background-color: var(--success-light);
+        }
+        
+        .stat-card.clickable.active-filter.warning-card {
+            border-color: var(--warning-color);
+            background-color: var(--warning-light);
+        }
+        
+        .stat-card.clickable.active-filter.error-card {
+            border-color: var(--error-color);
+            background-color: var(--error-light);
+        }
+        
+        .stat-card.clickable .filter-indicator {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            font-size: 0.75rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            display: none;
+        }
+        
+        .stat-card.clickable.active-filter .filter-indicator {
+            display: block;
+        }
+        
+        .stat-card.clickable.active-filter.success-card .filter-indicator {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .stat-card.clickable.active-filter.warning-card .filter-indicator {
+            background-color: var(--warning-color);
+            color: white;
+        }
+        
+        .stat-card.clickable.active-filter.error-card .filter-indicator {
+            background-color: var(--error-color);
+            color: white;
+        }
 
         .customer-card {
             background: var(--card-background);
@@ -600,27 +675,38 @@ $dashboardData = array_values($dashboardData);
             }
         }
 
+        /* ===== SUCHLEISTEN-STYLES ===== */
         .search-container {
-        margin-bottom: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .search-wrapper {
+            display: flex;
+            gap: 1rem;
+            align-items: stretch;
         }
         
         .search-box {
             display: flex;
-            width: 100%;
+            flex: 1;
             position: relative;
+            background: var(--card-background);
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
         }
         
-        #customerSearch {
+        #searchInput {
             flex: 1;
-            padding: 0.75rem;
+            padding: 0.75rem 2.5rem 0.75rem 0.75rem;
             border: 1px solid var(--border-color);
-            border-radius: 0.5rem;
+            border-right: none;
+            border-radius: 0.5rem 0 0 0.5rem;
             font-size: 1rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             transition: border-color 0.2s, box-shadow 0.2s;
         }
         
-        #customerSearch:focus {
+        #searchInput:focus {
             outline: none;
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
@@ -628,7 +714,7 @@ $dashboardData = array_values($dashboardData);
         
         .clear-search-btn {
             position: absolute;
-            right: 0.75rem;
+            right: 10.5rem;
             top: 50%;
             transform: translateY(-50%);
             background: none;
@@ -637,10 +723,193 @@ $dashboardData = array_values($dashboardData);
             color: var(--text-secondary);
             cursor: pointer;
             display: none;
+            z-index: 5;
         }
         
         .clear-search-btn:hover {
             color: var(--text-color);
+        }
+        
+        /* Suchmodus-Toggle */
+        .search-mode-toggle {
+            display: flex;
+            border: 1px solid var(--border-color);
+            border-left: none;
+            border-radius: 0 0.5rem 0.5rem 0;
+            overflow: hidden;
+        }
+        
+        .search-mode-toggle label {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            background-color: var(--background-color);
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border-left: 1px solid var(--border-color);
+        }
+        
+        .search-mode-toggle label:first-of-type {
+            border-left: none;
+        }
+        
+        .search-mode-toggle input[type="radio"] {
+            display: none;
+        }
+        
+        .search-mode-toggle input[type="radio"]:checked + label {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .search-mode-toggle input[type="radio"]:not(:checked) + label:hover {
+            background-color: var(--border-color);
+        }
+        
+        /* Backup-Typ Filter */
+        .filter-container {
+            position: relative;
+        }
+        
+        .filter-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--card-background);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: var(--text-color);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+            height: 100%;
+            white-space: nowrap;
+        }
+        
+        .filter-btn:hover {
+            background-color: var(--background-color);
+        }
+        
+        .filter-btn.has-filter {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        
+        .filter-btn svg {
+            width: 1rem;
+            height: 1rem;
+        }
+        
+        .filter-dropdown {
+            position: absolute;
+            top: calc(100% + 0.5rem);
+            right: 0;
+            background: var(--card-background);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            z-index: 100;
+            display: none;
+        }
+        
+        .filter-dropdown.show {
+            display: block;
+        }
+        
+        .filter-dropdown-header {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+            font-size: 0.875rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .filter-reset-btn {
+            font-size: 0.75rem;
+            color: var(--primary-color);
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+        
+        .filter-reset-btn:hover {
+            text-decoration: underline;
+        }
+        
+        .filter-options {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .filter-option {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+        
+        .filter-option:hover {
+            background-color: var(--background-color);
+        }
+        
+        .filter-option input[type="checkbox"] {
+            width: 1rem;
+            height: 1rem;
+            accent-color: var(--primary-color);
+        }
+        
+        .filter-option label {
+            cursor: pointer;
+            font-size: 0.875rem;
+            flex: 1;
+        }
+        
+        /* Responsive Anpassungen */
+        @media (max-width: 768px) {
+            .search-wrapper {
+                flex-direction: column;
+            }
+            
+            .search-box {
+                flex-direction: column;
+            }
+            
+            #searchInput {
+                border-radius: 0.5rem 0.5rem 0 0;
+                border-right: 1px solid var(--border-color);
+                border-bottom: none;
+            }
+            
+            .search-mode-toggle {
+                border-radius: 0 0 0.5rem 0.5rem;
+                border-left: 1px solid var(--border-color);
+                border-top: none;
+            }
+            
+            .search-mode-toggle label:first-of-type {
+                border-left: none;
+            }
+            
+            .clear-search-btn {
+                right: 0.75rem;
+            }
+            
+            .filter-dropdown {
+                left: 0;
+                right: 0;
+            }
         }
         
         .no-results {
@@ -694,38 +963,87 @@ $dashboardData = array_values($dashboardData);
                     </div>
                 </div>
             </div>
-            <div class="stat-card">
+            
+            <!-- Anklickbare Status-Karten -->
+            <div class="stat-card clickable success-card" data-status-filter="success" title="Klicken um nach erfolgreich zu filtern">
+                <span class="filter-indicator">Aktiv</span>
                 <div class="stat-label">Erfolgreich</div>
                 <div class="stat-value success"><?php echo $stats['success']; ?></div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card clickable warning-card" data-status-filter="warning" title="Klicken um nach Warnungen zu filtern">
+                <span class="filter-indicator">Aktiv</span>
                 <div class="stat-label">Warnungen</div>
                 <div class="stat-value warning"><?php echo $stats['warning']; ?></div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card clickable error-card" data-status-filter="error" title="Klicken um nach Fehlern zu filtern">
+                <span class="filter-indicator">Aktiv</span>
                 <div class="stat-label">Fehler</div>
                 <div class="stat-value error"><?php echo $stats['error']; ?></div>
             </div>
         </div>
 
-        <!-- Suchleiste -->
+        <!-- Suchleiste mit Modus-Umschalter und Filter -->
         <div class="search-container">
-            <div class="search-box">
-                <input type="text" id="customerSearch" placeholder="Nach Kunde, Backup-Job oder Backup-Typ suchen..." autocomplete="off">
-                <button id="clearSearch" class="clear-search-btn">&times;</button>
+            <div class="search-wrapper">
+                <!-- Suchfeld mit Mode-Toggle -->
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Nach Kundenname oder Kundennummer suchen..." autocomplete="off">
+                    <button id="clearSearch" class="clear-search-btn">&times;</button>
+                    
+                    <!-- Suchmodus Toggle -->
+                    <div class="search-mode-toggle">
+                        <input type="radio" name="searchMode" id="modeCustomer" value="customer" checked>
+                        <label for="modeCustomer">Kunden</label>
+                        <input type="radio" name="searchMode" id="modeJobs" value="jobs">
+                        <label for="modeJobs">Jobs</label>
+                    </div>
+                </div>
+                
+                <!-- Backup-Typ Filter -->
+                <div class="filter-container">
+                    <button class="filter-btn" id="filterBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                        </svg>
+                        <span id="filterBtnText">Backup-Typ</span>
+                    </button>
+                    
+                    <div class="filter-dropdown" id="filterDropdown">
+                        <div class="filter-dropdown-header">
+                            <span>Backup-Typen</span>
+                            <button class="filter-reset-btn" id="filterResetBtn">Zurücksetzen</button>
+                        </div>
+                        <div class="filter-options">
+                            <?php foreach ($backupTypes as $type): ?>
+                            <div class="filter-option">
+                                <input type="checkbox" id="filter_<?php echo htmlspecialchars($type); ?>" value="<?php echo htmlspecialchars($type); ?>" class="backup-type-filter">
+                                <label for="filter_<?php echo htmlspecialchars($type); ?>"><?php echo htmlspecialchars($type); ?></label>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
             </div>
+            
+            <!-- Zähler für sichtbare Ergebnisse -->
+            <div id="searchCounter" class="search-counter" style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 0.5rem;"></div>
         </div>
 
         <!-- Kundenliste -->
         <?php foreach ($dashboardData as $customerData): ?>
-            <div class="customer-card">
+            <div class="customer-card" 
+                 data-customer-name="<?php echo htmlspecialchars(strtolower($customerData['customer']['name'])); ?>" 
+                 data-customer-number="<?php echo htmlspecialchars(strtolower($customerData['customer']['number'])); ?>">
                 <div class="customer-header">
                     <div class="customer-name"><?php echo htmlspecialchars($customerData['customer']['name']); ?></div>
                     <div class="customer-number">(<?php echo htmlspecialchars($customerData['customer']['number']); ?>)</div>
                 </div>
 
                 <?php foreach ($customerData['jobs'] as $job): ?>
-                    <div class="job-container">
+                    <div class="job-container" 
+                         data-job-name="<?php echo htmlspecialchars(strtolower($job['job_name'])); ?>" 
+                         data-backup-type="<?php echo htmlspecialchars($job['backup_type']); ?>"
+                         data-current-status="<?php echo htmlspecialchars($job['current_status']); ?>">
                     <div class="job-header">
                         <div class="job-name"><?php echo htmlspecialchars($job['job_name']); ?></div>
                         <div class="job-type"><?php echo htmlspecialchars($job['backup_type']); ?></div>
@@ -733,7 +1051,7 @@ $dashboardData = array_values($dashboardData);
 
                     <div class="results-grid">
                         <?php 
-                        // Generiere die letzten 21 Tage
+                        // Generiere die letzten 30 Tage
                         $dates = [];
                         for ($i = 30; $i >= 0; $i--) {
                             $dates[] = date('Y-m-d', strtotime("-$i days"));
@@ -791,6 +1109,7 @@ $dashboardData = array_values($dashboardData);
     <script>
         let activeTooltip = null;
         let isTooltipLocked = false;
+        let activeStatusFilter = null; // Neuer Status-Filter
 
         // Funktion zur Umrechnung von MB in GB mit 2 Nachkommastellen
         function formatSize(sizeMB) {
@@ -1031,153 +1350,283 @@ $dashboardData = array_values($dashboardData);
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-        const searchInput = document.getElementById('customerSearch');
-        const clearButton = document.getElementById('clearSearch');
-        const customerCards = document.querySelectorAll('.customer-card');
+            const searchInput = document.getElementById('searchInput');
+            const clearButton = document.getElementById('clearSearch');
+            const customerCards = document.querySelectorAll('.customer-card');
+            const searchCounter = document.getElementById('searchCounter');
+            const filterBtn = document.getElementById('filterBtn');
+            const filterDropdown = document.getElementById('filterDropdown');
+            const filterResetBtn = document.getElementById('filterResetBtn');
+            const filterBtnText = document.getElementById('filterBtnText');
+            const backupTypeFilters = document.querySelectorAll('.backup-type-filter');
+            const modeCustomer = document.getElementById('modeCustomer');
+            const modeJobs = document.getElementById('modeJobs');
+            const statusCards = document.querySelectorAll('.stat-card.clickable');
 
-        // Prefill search from URL query parameter "?search=..."
-        const params = new URLSearchParams(window.location.search);
-        const prefill = params.get('search');
-        if (prefill) {
-            searchInput.value = prefill;
-        }
-        
-        // Zähler für sichtbare Kunden
-        let visibleCounter = document.createElement('div');
-        visibleCounter.className = 'search-counter';
-        visibleCounter.style.color = 'var(--text-secondary)';
-        visibleCounter.style.fontSize = '0.875rem';
-        visibleCounter.style.marginTop = '0.5rem';
-        document.querySelector('.search-container').appendChild(visibleCounter);
-        
-        // Update-Funktion für den Zähler
-        function updateVisibleCounter() {
-            const totalCards = customerCards.length;
-            const visibleCards = document.querySelectorAll('.customer-card:not(.hidden)').length;
-            
-            if (searchInput.value.trim() === '') {
-                visibleCounter.textContent = '';
-            } else {
-                visibleCounter.textContent = `${visibleCards} von ${totalCards} Kunden angezeigt`;
+            // Prefill search from URL query parameter "?search=..."
+            const params = new URLSearchParams(window.location.search);
+            const prefill = params.get('search');
+            if (prefill) {
+                searchInput.value = prefill;
             }
-            
-            // "Keine Ergebnisse" Anzeige
-            let noResults = document.querySelector('.no-results');
-            
-            if (visibleCards === 0 && searchInput.value.trim() !== '') {
-                if (!noResults) {
-                    noResults = document.createElement('div');
-                    noResults.className = 'no-results';
-                    noResults.textContent = 'Keine Ergebnisse gefunden.';
-                    
-                    // Einfügen nach der Suchleiste und vor der ersten Kundenkarte
-                    const firstCustomerCard = document.querySelector('.customer-card');
-                    if (firstCustomerCard) {
-                        firstCustomerCard.parentNode.insertBefore(noResults, firstCustomerCard);
-                    }
-                }
-            } else if (noResults) {
-                noResults.remove();
-            }
-        }
-        
-        // Suchfunktion
-        function filterCustomers() {
-            const searchTerm = searchInput.value.toLowerCase().trim();
-            
-            // Clear-Button anzeigen/verstecken
-            clearButton.style.display = searchTerm ? 'block' : 'none';
-            
-            customerCards.forEach(card => {
-                const customerName = card.querySelector('.customer-name').textContent.toLowerCase();
-                const customerNumber = card.querySelector('.customer-number').textContent.toLowerCase();
-                const jobs = card.querySelectorAll('.job-container');
-                
-                // Prüfen ob Suchbegriff im Kundennamen oder Kundennummer
-                const customerMatches = customerName.includes(searchTerm) || customerNumber.includes(searchTerm);
-                
-                if (customerMatches || searchTerm === '') {
-                    // Kunde passt oder keine Suche -> alle Jobs anzeigen
-                    card.classList.remove('hidden');
-                    jobs.forEach(job => job.classList.remove('hidden'));
+
+            // Placeholder je nach Modus aktualisieren
+            function updatePlaceholder() {
+                if (modeCustomer.checked) {
+                    searchInput.placeholder = 'Nach Kundenname oder Kundennummer suchen...';
                 } else {
-                    // Kunde passt nicht -> Jobs einzeln prüfen
-                    let hasMatchingJob = false;
+                    searchInput.placeholder = 'Nach Jobname suchen...';
+                }
+            }
+
+            // ===== STATUS-KARTEN KLICK-HANDLER =====
+            statusCards.forEach(card => {
+                card.addEventListener('click', () => {
+                    const status = card.dataset.statusFilter;
                     
-                    jobs.forEach(job => {
-                        const jobName = job.querySelector('.job-name').textContent.toLowerCase();
-                        const jobType = job.querySelector('.job-type').textContent.toLowerCase();
-                        
-                        if (jobName.includes(searchTerm) || jobType.includes(searchTerm)) {
-                            job.classList.remove('hidden');
-                            hasMatchingJob = true;
+                    // Toggle: Wenn bereits aktiv, dann deaktivieren
+                    if (activeStatusFilter === status) {
+                        activeStatusFilter = null;
+                        card.classList.remove('active-filter');
+                    } else {
+                        // Alle anderen deaktivieren
+                        statusCards.forEach(c => c.classList.remove('active-filter'));
+                        // Diesen aktivieren
+                        activeStatusFilter = status;
+                        card.classList.add('active-filter');
+                    }
+                    
+                    filterAndSearch();
+                });
+            });
+
+            // Filter-Dropdown öffnen/schließen
+            filterBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                filterDropdown.classList.toggle('show');
+            });
+
+            // Dropdown schließen wenn außerhalb geklickt
+            document.addEventListener('click', (e) => {
+                if (!filterDropdown.contains(e.target) && e.target !== filterBtn) {
+                    filterDropdown.classList.remove('show');
+                }
+            });
+
+            // Filter zurücksetzen
+            filterResetBtn.addEventListener('click', () => {
+                backupTypeFilters.forEach(cb => cb.checked = false);
+                filterBtn.classList.remove('has-filter');
+                filterBtnText.textContent = 'Backup-Typ';
+                filterAndSearch();
+            });
+
+            // Bei Änderung der Filter-Checkboxen
+            backupTypeFilters.forEach(checkbox => {
+                checkbox.addEventListener('change', () => {
+                    const checkedFilters = document.querySelectorAll('.backup-type-filter:checked');
+                    if (checkedFilters.length > 0) {
+                        filterBtn.classList.add('has-filter');
+                        filterBtnText.textContent = `Filter (${checkedFilters.length})`;
+                    } else {
+                        filterBtn.classList.remove('has-filter');
+                        filterBtnText.textContent = 'Backup-Typ';
+                    }
+                    filterAndSearch();
+                });
+            });
+
+            // Suchmodus wechseln
+            modeCustomer.addEventListener('change', () => {
+                updatePlaceholder();
+                filterAndSearch();
+            });
+            
+            modeJobs.addEventListener('change', () => {
+                updatePlaceholder();
+                filterAndSearch();
+            });
+
+            // Hauptfunktion für Suche und Filter
+            function filterAndSearch() {
+                const searchTerm = searchInput.value.toLowerCase().trim();
+                const isCustomerMode = modeCustomer.checked;
+                
+                // Aktive Backup-Typ-Filter sammeln
+                const activeTypeFilters = [];
+                backupTypeFilters.forEach(cb => {
+                    if (cb.checked) activeTypeFilters.push(cb.value.toLowerCase());
+                });
+
+                // Clear-Button anzeigen/verstecken
+                clearButton.style.display = searchTerm ? 'block' : 'none';
+
+                customerCards.forEach(card => {
+                    const customerName = card.dataset.customerName || '';
+                    const customerNumber = card.dataset.customerNumber || '';
+                    const jobs = card.querySelectorAll('.job-container');
+                    
+                    let cardVisible = false;
+                    let hasVisibleJobs = false;
+
+                    if (isCustomerMode) {
+                        // KUNDEN-MODUS: Suche nach Kundenname und Kundennummer
+                        const customerMatches = searchTerm === '' || 
+                            customerName.includes(searchTerm) || 
+                            customerNumber.includes(searchTerm);
+
+                        if (customerMatches) {
+                            // Kunde passt zur Suche -> Jobs nach Filter filtern
+                            jobs.forEach(job => {
+                                const jobType = (job.dataset.backupType || '').toLowerCase();
+                                const jobStatus = (job.dataset.currentStatus || '').toLowerCase();
+                                
+                                const jobMatchesTypeFilter = activeTypeFilters.length === 0 || activeTypeFilters.includes(jobType);
+                                const jobMatchesStatusFilter = !activeStatusFilter || jobStatus === activeStatusFilter;
+                                
+                                if (jobMatchesTypeFilter && jobMatchesStatusFilter) {
+                                    job.classList.remove('hidden');
+                                    hasVisibleJobs = true;
+                                } else {
+                                    job.classList.add('hidden');
+                                }
+                            });
+                            cardVisible = hasVisibleJobs || jobs.length === 0;
                         } else {
-                            job.classList.add('hidden');
+                            // Kunde passt nicht zur Suche
+                            cardVisible = false;
+                            jobs.forEach(job => job.classList.add('hidden'));
                         }
-                    });
-                    
-                    // Karte nur anzeigen wenn mindestens ein Job passt
-                    if (hasMatchingJob) {
+                    } else {
+                        // JOBS-MODUS: Suche nach Jobname
+                        jobs.forEach(job => {
+                            const jobName = (job.dataset.jobName || '').toLowerCase();
+                            const jobType = (job.dataset.backupType || '').toLowerCase();
+                            const jobStatus = (job.dataset.currentStatus || '').toLowerCase();
+                            
+                            const jobMatchesSearch = searchTerm === '' || jobName.includes(searchTerm);
+                            const jobMatchesTypeFilter = activeTypeFilters.length === 0 || activeTypeFilters.includes(jobType);
+                            const jobMatchesStatusFilter = !activeStatusFilter || jobStatus === activeStatusFilter;
+                            
+                            if (jobMatchesSearch && jobMatchesTypeFilter && jobMatchesStatusFilter) {
+                                job.classList.remove('hidden');
+                                hasVisibleJobs = true;
+                            } else {
+                                job.classList.add('hidden');
+                            }
+                        });
+                        cardVisible = hasVisibleJobs;
+                    }
+
+                    // Kundenkarte anzeigen/verstecken
+                    if (cardVisible) {
                         card.classList.remove('hidden');
                     } else {
                         card.classList.add('hidden');
                     }
+                });
+
+                updateCounter();
+            }
+
+            // Zähler aktualisieren
+            function updateCounter() {
+                const totalCards = customerCards.length;
+                const visibleCards = document.querySelectorAll('.customer-card:not(.hidden)').length;
+                const totalJobs = document.querySelectorAll('.job-container').length;
+                const visibleJobs = document.querySelectorAll('.job-container:not(.hidden)').length;
+                
+                const searchTerm = searchInput.value.trim();
+                const hasActiveTypeFilter = document.querySelectorAll('.backup-type-filter:checked').length > 0;
+                const hasAnyFilter = searchTerm !== '' || hasActiveTypeFilter || activeStatusFilter;
+                
+                if (!hasAnyFilter) {
+                    searchCounter.textContent = '';
+                } else {
+                    let filterInfo = [];
+                    if (searchTerm) filterInfo.push(`Suche: "${searchTerm}"`);
+                    if (activeStatusFilter) {
+                        const statusLabels = { success: 'Erfolgreich', warning: 'Warnungen', error: 'Fehler' };
+                        filterInfo.push(`Status: ${statusLabels[activeStatusFilter]}`);
+                    }
+                    if (hasActiveTypeFilter) {
+                        const count = document.querySelectorAll('.backup-type-filter:checked').length;
+                        filterInfo.push(`${count} Backup-Typ(en)`);
+                    }
+                    
+                    searchCounter.textContent = `${visibleCards} von ${totalCards} Kunden | ${visibleJobs} von ${totalJobs} Jobs | Filter: ${filterInfo.join(', ')}`;
+                }
+                
+                // "Keine Ergebnisse" Anzeige
+                let noResults = document.querySelector('.no-results');
+                
+                if (visibleCards === 0 && hasAnyFilter) {
+                    if (!noResults) {
+                        noResults = document.createElement('div');
+                        noResults.className = 'no-results';
+                        noResults.textContent = 'Keine Ergebnisse gefunden.';
+                        
+                        const firstCustomerCard = document.querySelector('.customer-card');
+                        if (firstCustomerCard) {
+                            firstCustomerCard.parentNode.insertBefore(noResults, firstCustomerCard);
+                        }
+                    }
+                } else if (noResults) {
+                    noResults.remove();
+                }
+            }
+
+            // Event-Listener für Sucheingabe
+            searchInput.addEventListener('input', filterAndSearch);
+            
+            clearButton.addEventListener('click', function() {
+                searchInput.value = '';
+                filterAndSearch();
+                searchInput.focus();
+            });
+
+            // Initialer Aufruf
+            updatePlaceholder();
+            filterAndSearch();
+
+            // Hover-Tooltip erstellen
+            const hoverTooltip = document.createElement('div');
+            hoverTooltip.className = 'hover-date';
+            document.body.appendChild(hoverTooltip);
+
+            // Event-Listener für alle result-square Elemente
+            document.addEventListener('mouseover', function(e) {
+                if (e.target.classList.contains('result-square')) {
+                    const date = e.target.dataset.date;
+                    if (date) {
+                        const dateObj = new Date(date);
+                        const weekday = dateObj.toLocaleDateString('de-DE', { weekday: 'long' });
+                        const formattedDate = dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        
+                        hoverTooltip.textContent = `${weekday} - ${formattedDate}`;
+                        hoverTooltip.style.display = 'block';
+                        
+                        // Position berechnen mit Scroll-Offset
+                        const rect = e.target.getBoundingClientRect();
+                        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                        
+                        hoverTooltip.style.left = (rect.left + window.scrollX) + 'px';
+                        hoverTooltip.style.top = (rect.top + scrollTop - 25) + 'px';
+                    }
                 }
             });
-            
-            updateVisibleCounter();
-        }
-        
-        // Event-Listener
-        searchInput.addEventListener('input', filterCustomers);
-        
-        clearButton.addEventListener('click', function() {
-            searchInput.value = '';
-            filterCustomers();
-            searchInput.focus();
-        });
-        
-        // Initiales Update
-        filterCustomers();
 
-        // Hover-Tooltip erstellen
-        const hoverTooltip = document.createElement('div');
-        hoverTooltip.className = 'hover-date';
-        document.body.appendChild(hoverTooltip);
-
-        // Event-Listener für alle result-square Elemente
-        document.addEventListener('mouseover', function(e) {
-            if (e.target.classList.contains('result-square')) {
-                const date = e.target.dataset.date;
-                if (date) {
-                    const dateObj = new Date(date);
-                    const weekday = dateObj.toLocaleDateString('de-DE', { weekday: 'long' });
-                    const formattedDate = dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                    
-                    hoverTooltip.textContent = `${weekday} - ${formattedDate}`;
-                    hoverTooltip.style.display = 'block';
-                    
-                    // Position berechnen mit Scroll-Offset
-                    const rect = e.target.getBoundingClientRect();
-                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                    
-                    hoverTooltip.style.left = (rect.left + window.scrollX) + 'px';
-                    hoverTooltip.style.top = (rect.top + scrollTop - 25) + 'px';
+            document.addEventListener('mouseout', function(e) {
+                if (e.target.classList.contains('result-square')) {
+                    hoverTooltip.style.display = 'none';
                 }
-            }
+            });
         });
-
-        document.addEventListener('mouseout', function(e) {
-            if (e.target.classList.contains('result-square')) {
-                hoverTooltip.style.display = 'none';
-            }
-        });
-    });
     </script>
 
 <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-4 z-10">
     <div class="container mx-auto text-center">
-        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller - 49h Arbeitszeit (Stand 18.12.2025)</a>
+        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller - 53h Arbeitszeit (Stand 18.12.2025)</a>
     </div>
 </footer>
 
