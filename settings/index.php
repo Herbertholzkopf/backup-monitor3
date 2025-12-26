@@ -213,6 +213,40 @@
                 <p class="card-description">Hier können Filter für das automatische Aussortieren von Mails konfiguriert werden</p>
             </a>
         </div>
+
+        <h2 style="font-size: 1.75rem; margin-bottom: 2rem; margin-top: 4rem; text-align: left; padding-left: 1.5rem; color: #374151;">Weitere Statistiken und Statusmeldungen</h2>
+
+        <div class="cards-container">
+            <a href="./mailstore-info" class="card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <img src="./detail.png" alt="Mailstore Icon">
+                    </div>
+                    <h2 class="card-title">Mailstore Informationen</h2>
+                </div>
+                <p class="card-description">Erhalte weitere Infos von Mailstore, wie Version, Lizenzgröße, Lizenzablaufdatum, ...</p>
+            </a>
+
+            <a href="./veeam-health-info" class="card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <img src="./health.png" alt="Veeam Icon">
+                    </div>
+                    <h2 class="card-title">Veeam Backup Health</h2>
+                </div>
+                <p class="card-description">Veeam prüft einmal im Monat die Integrität der Backup-Dateien. Diese Info kann genutzt werden, um korrumpierte Backups zu identifizieren.</p>
+            </a>
+
+            <a href="./nas-disks-info" class="card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <img src="./nas.png" alt="Synology Icon">
+                    </div>
+                    <h2 class="card-title">Synology Festplatten</h2>
+                </div>
+                <p class="card-description">Synology NAS-Geräte prüfen einmal im Monat einen Gesundheitsstatus der installieren Festplatten.</p>
+            </a>
+        </div>
     </div>
 
     <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-4 z-10">
