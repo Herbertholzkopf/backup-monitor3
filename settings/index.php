@@ -156,7 +156,7 @@
             <a href="./customers" class="card">
                 <div class="card-header">
                     <div class="card-icon">
-                        <img src="./user.png" alt="Kunden Icon von https://thenounproject.com/creator/denovo-agency/">
+                        <img src="./customers/user.png" alt="Kunden Icon von https://thenounproject.com/creator/denovo-agency/">
                     </div>
                     <h2 class="card-title">Kunden</h2>
                 </div>
@@ -166,7 +166,7 @@
             <a href="./backup-jobs" class="card">
                 <div class="card-header">
                     <div class="card-icon">
-                        <img src="./database.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
+                        <img src="./backup-jobs/database.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
                     </div>
                     <h2 class="card-title">Backup-Jobs</h2>
                 </div>
@@ -176,7 +176,7 @@
             <a href="./information" class="card">
                 <div class="card-header">
                     <div class="card-icon">
-                        <img src="./info.png" alt="Info Icon von https://thenounproject.com/creator/denovo-agency/">
+                        <img src="./information/info.png" alt="Info Icon von https://thenounproject.com/creator/denovo-agency/">
                     </div>
                     <h2 class="card-title">Wissendatenbank</h2>
                 </div>
@@ -186,7 +186,7 @@
             <a href="./unprocessed-mails" class="card">
                 <div class="card-header">
                     <div class="card-icon">
-                        <img src="./list.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
+                        <img src="./unprocessed-mails/list.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
                     </div>
                     <h2 class="card-title">Unverarbeitete Mails</h2>
                 </div>
@@ -196,7 +196,7 @@
             <a href="./all-mails" class="card">
                 <div class="card-header">
                     <div class="card-icon">
-                        <img src="./bug.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
+                        <img src="./all-mails/bug.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
                     </div>
                     <h2 class="card-title">Alle Mails</h2>
                 </div>
@@ -206,7 +206,7 @@
             <a href="./mail-filter" class="card">
                 <div class="card-header">
                     <div class="card-icon">
-                        <img src="./trash.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
+                        <img src="./mail-filter/trash.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
                     </div>
                     <h2 class="card-title">Mail-Filter</h2>
                 </div>
@@ -220,7 +220,7 @@
             <a href="./mailstore-info" class="card">
                 <div class="card-header">
                     <div class="card-icon">
-                        <img src="./detail.png" alt="Mailstore Icon">
+                        <img src="./mailstore-info/detail.png" alt="Icon von https://thenounproject.com/creator/UBicon/">
                     </div>
                     <h2 class="card-title">Mailstore Informationen</h2>
                 </div>
@@ -230,7 +230,7 @@
             <a href="./veeam-health-info" class="card">
                 <div class="card-header">
                     <div class="card-icon">
-                        <img src="./health.png" alt="Veeam Icon">
+                        <img src="./veeam-health-info/health.png" alt="Icon von https://thenounproject.com/creator/muhammadriza/">
                     </div>
                     <h2 class="card-title">Veeam Backup Health</h2>
                 </div>
@@ -240,7 +240,7 @@
             <a href="./nas-disks-info" class="card">
                 <div class="card-header">
                     <div class="card-icon">
-                        <img src="./nas.png" alt="Synology Icon">
+                        <img src="./nas-disks-info/nas.png" alt="Icon von https://thenounproject.com/creator/eckstein/">
                     </div>
                     <h2 class="card-title">Synology Festplatten</h2>
                 </div>
