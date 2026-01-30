@@ -1626,7 +1626,7 @@ $dashboardData = array_values($dashboardData);
 
 <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-4 z-10">
     <div class="container mx-auto text-center">
-        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller - 54h Arbeitszeit (Stand 26.12.2025)</a>
+        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller - 55h Arbeitszeit (Stand 28.12.2025)</a>
     </div>
 </footer>
 

@@ -963,6 +963,9 @@ if (!isset($_SESSION)) {
                         <label for="ignore_no_status_updates_for_x_hours">Status-Timeout (Stunden):</label>
                         <input type="number" id="ignore_no_status_updates_for_x_hours" name="ignore_no_status_updates_for_x_hours" min="0" value="24" placeholder="standardmäßig 24 Stunden">
                         <p class="form-hint">Dieser Wert legt fest, wie lange ein Backup-Job seinen zuletzt bekannten Status behält, bevor er als „kein Status" angezeigt wird. Standardmäßig 24 Stunden.</p>
+                        <p class="form-hint">3 Tage = 72 Stunden</p>
+                        <p class="form-hint">7 Tage = 168 Stunden</p>
+                        <p class="form-hint">31 Tage (maximum) = 744</p>
                     </div>
                     
                     <div class="modal-footer">
@@ -1037,6 +1040,9 @@ if (!isset($_SESSION)) {
                         <label for="edit_ignore_no_status_updates_for_x_hours">Status-Timeout (Stunden):</label>
                         <input type="number" id="edit_ignore_no_status_updates_for_x_hours" name="ignore_no_status_updates_for_x_hours" min="0" placeholder="standardmäßig 24 Stunden">
                         <p class="form-hint">Dieser Wert legt fest, wie lange ein Backup-Job seinen zuletzt bekannten Status behält, bevor er als „kein Status" angezeigt wird. Standardmäßig 24 Stunden.</p>
+                        <p class="form-hint">3 Tage = 72 Stunden</p>
+                        <p class="form-hint">7 Tage = 168 Stunden</p>
+                        <p class="form-hint">31 Tage (maximum) = 744</p>
                     </div>
                     
                     <div class="modal-footer">
