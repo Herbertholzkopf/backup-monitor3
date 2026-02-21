@@ -1,5 +1,6 @@
 # script-runner anpassen
 # Verbesserte Version mit Unterstützung für deutsche und englische Mails
+# inkl. US-Datumsformat (M/D/YYYY) für Cloud-MailStore-Instanzen
 
 import sys
 import os
@@ -149,18 +150,17 @@ def extract_date_from_mail(html_content):
     """
     Extrahiert das Datum aus dem MailStore Report
     Sucht nach dem Datum in den Archivierungsstatistiken
-    Unterstützt sowohl deutsche als auch englische Formate
+    Unterstützt deutsche (DD.MM.YYYY), englische (DD.MM.YYYY) und
+    US-Cloud-Formate (M/D/YYYY)
     """
-    # Suche nach Datum im Format (DD.MM.YYYY) - für deutsche und englische Mails
-    # Deutsche: "Archivierungsstatistiken (DD.MM.YYYY)"
-    # Englische: "Archiving Statistics (DD.MM.YYYY)" oder "Jobs (DD.MM.YYYY)"
-    patterns = [
+    # 1. Deutsches Format: Datum mit Punkten (DD.MM.YYYY)
+    patterns_de = [
         r'Archivierungsstatistiken.*?\((\d{2}\.\d{2}\.\d{4})\)',
         r'Archiving Statistics.*?\((\d{2}\.\d{2}\.\d{4})\)',
         r'Jobs.*?\((\d{2}\.\d{2}\.\d{4})\)'
     ]
     
-    for pattern in patterns:
+    for pattern in patterns_de:
         match = re.search(pattern, html_content, re.DOTALL)
         if match:
             date_str = match.group(1)
@@ -168,14 +168,39 @@ def extract_date_from_mail(html_content):
                 return datetime.strptime(date_str, '%d.%m.%Y')
             except ValueError:
                 continue
+
+    # 2. US-/Cloud-Format: Datum mit Slashes (M/D/YYYY)
+    patterns_us = [
+        r'Archivierungsstatistiken.*?\((\d{1,2}/\d{1,2}/\d{4})\)',
+        r'Archiving Statistics.*?\((\d{1,2}/\d{1,2}/\d{4})\)',
+        r'Jobs.*?\((\d{1,2}/\d{1,2}/\d{4})\)'
+    ]
+
+    for pattern in patterns_us:
+        match = re.search(pattern, html_content, re.DOTALL)
+        if match:
+            date_str = match.group(1)
+            try:
+                return datetime.strptime(date_str, '%m/%d/%Y')
+            except ValueError:
+                continue
     
-    # Alternative: Suche nach "Letzte Ausführung" oder "Last Execution" Datum
-    exec_pattern = r'(\d{2}\.\d{2}\.\d{4})\s+\d{2}:\d{2}:\d{2}'
-    matches = re.findall(exec_pattern, html_content)
+    # 3. Fallback: Suche nach "Letzte Ausführung" / "Last Execution" Datum
+    # Deutsches Format: DD.MM.YYYY HH:MM:SS
+    exec_pattern_de = r'(\d{2}\.\d{2}\.\d{4})\s+\d{2}:\d{2}:\d{2}'
+    matches = re.findall(exec_pattern_de, html_content)
     if matches:
         try:
-            # Nimm das erste gefundene Datum
             return datetime.strptime(matches[0], '%d.%m.%Y')
+        except ValueError:
+            pass
+
+    # US-Format: M/D/YYYY H:MM:SS AM/PM
+    exec_pattern_us = r'(\d{1,2}/\d{1,2}/\d{4})\s+\d{1,2}:\d{2}:\d{2}\s*[AP]M'
+    matches = re.findall(exec_pattern_us, html_content)
+    if matches:
+        try:
+            return datetime.strptime(matches[0], '%m/%d/%Y')
         except ValueError:
             pass
     
