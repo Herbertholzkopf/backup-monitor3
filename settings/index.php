@@ -1,259 +1,234 @@
 <?php
-// kein php Skript, nur pures HTML :)
+/**
+ * EINSTELLUNGEN — Übersichtsseite
+ * 
+ * Pfad:    /settings/index.php
+ * Includes: ../includes/styles.css, ../includes/app.js
+ */
+// kein PHP-Skript, nur pures HTML :)
 ?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Einstellungen</title>
+    <title>Einstellungen – Backup-Monitor</title>
+    <!-- ===== Zentrale Einbindung ===== -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="../includes/styles.css" rel="stylesheet">
+
+    <!-- ===== Seiten-spezifische Styles ===== -->
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-        }
-
-        body {
-            background-color: #f3f4f6;
-            min-height: 100vh;
-            padding: 12rem 2rem;
-            padding-bottom: 4rem;
-            position: relative;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            margin-bottom: 4rem;
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 3.5rem;
-            text-align: left;
-            padding-left: 1.5rem;
-            color: #1f2937;
-        }
-
-        .cards-container {
+        .settings-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 4rem;
-        }
-
-        .card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-            text-decoration: none;
-            color: inherit;
-            display: block;
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-
-        .card-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 1rem;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 1rem;
         }
 
-        .card-icon {
-            width: 24px;
-            height: 24px;
+        .settings-card {
+            background: #ffffff;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--color-gray-200);
+            padding: 1.5rem;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            transition: all var(--transition-normal);
+        }
+
+        .settings-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-xl);
+            border-color: var(--color-primary);
+        }
+
+        .settings-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .settings-card-icon {
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: var(--border-radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
             flex-shrink: 0;
         }
 
-        .card-icon img {
-            width: 100%;
-            height: 100%;
+        .settings-card-icon img {
+            width: 1.25rem;
+            height: 1.25rem;
+            opacity: 0.8;
         }
 
-        .card-title {
-            font-size: 1.25rem;
+        .settings-card-icon i {
+            font-size: 1rem;
+        }
+
+        .settings-card-title {
+            font-size: 1.125rem;
             font-weight: 600;
-            color: #1f2937;
+            color: var(--color-gray-800);
         }
 
-        .card-description {
-            color: #6b7280;
-            line-height: 1.4;
-            padding-left: 2.5rem;
-        }
-
-        footer {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        text-align: center;
-        background-color: white;
-        border-top: 1px solid #e5e7eb;
-        padding: 1rem 0;
-        z-index: 100;
-        color: #6b7280;
-        }
-
-        footer .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .footer-link {
-            color: inherit;
-            text-decoration: none;
-        }
-
-        /* Neuer Back-Button Style */
-        .back-button {
-            position: absolute;
-            top: 2rem;
-            left: 2rem;
-            display: flex;
-            align-items: center;
-            padding: 0.75rem 1rem;
-            border-radius: 5px;
-            text-decoration: none;
-            color: #1f2937;
-            background-color: transparent;
-            transition: background-color 0.2s;
-        }
-
-        .back-button:hover {
-            background-color: rgba(229, 231, 235, 0.5);
-        }
-
-        .back-arrow {
-            font-size: 1.25rem;
-            margin-right: 0.5rem;
-        }
-
-        .back-text {
-            font-weight: 500;
+        .settings-card-desc {
+            font-size: 0.875rem;
+            color: var(--color-gray-500);
+            line-height: 1.5;
+            padding-left: 3rem;
         }
     </style>
 </head>
 <body>
-    <!-- Neuer Back-Button -->
-    <a href="../" class="back-button">
-        <span class="back-arrow">←</span>
-        <span class="back-text">Zurück zum Dashboard</span>
-    </a>
 
-    <div class="container">
-        <h1>Einstellungen</h1>
-        
-        <div class="cards-container">
-            <a href="./customers" class="card">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <img src="./customers/user.png" alt="Kunden Icon von https://thenounproject.com/creator/denovo-agency/">
+    <div class="container mx-auto px-4 py-6">
+
+        <!-- ============================================================
+             SEITEN-HEADER
+             ============================================================ -->
+        <header class="page-header">
+            <a href="../" class="back-button">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <div class="page-header-title">
+                <h1>Einstellungen</h1>
+                <p>Verwaltung und Konfiguration</p>
+            </div>
+        </header>
+
+
+        <!-- ============================================================
+             EINSTELLUNGEN — Hauptbereich
+             ============================================================ -->
+        <div class="settings-grid mb-6">
+
+            <a href="./customers" class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-card-icon bg-blue-50">
+                        <i class="fas fa-users text-blue-500"></i>
                     </div>
-                    <h2 class="card-title">Kunden</h2>
+                    <h2 class="settings-card-title">Kunden</h2>
                 </div>
-                <p class="card-description">Erstellen, Bearbeiten & Löschen von Kunden</p>
+                <p class="settings-card-desc">Erstellen, Bearbeiten & Löschen von Kunden</p>
             </a>
 
-            <a href="./backup-jobs" class="card">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <img src="./backup-jobs/database.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
+            <a href="./backup-jobs" class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-card-icon bg-green-50">
+                        <i class="fas fa-database text-green-500"></i>
                     </div>
-                    <h2 class="card-title">Backup-Jobs</h2>
+                    <h2 class="settings-card-title">Backup-Jobs</h2>
                 </div>
-                <p class="card-description">Erstellen, Bearbeiten & Löschen von Backup-Jobs der Kunden</p>
+                <p class="settings-card-desc">Erstellen, Bearbeiten & Löschen von Backup-Jobs der Kunden</p>
             </a>
 
-            <a href="./information" class="card">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <img src="./information/info.png" alt="Info Icon von https://thenounproject.com/creator/denovo-agency/">
+            <a href="./information" class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-card-icon bg-purple-50">
+                        <i class="fas fa-book text-purple-500"></i>
                     </div>
-                    <h2 class="card-title">Wissendatenbank</h2>
+                    <h2 class="settings-card-title">Wissensdatenbank</h2>
                 </div>
-                <p class="card-description">Anleitungen und Erklärungen zur Verwendung</p>
+                <p class="settings-card-desc">Anleitungen und Erklärungen zur Verwendung</p>
             </a>
 
-            <a href="./unprocessed-mails" class="card">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <img src="./unprocessed-mails/list.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
+            <a href="./mail-filter" class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-card-icon bg-gray-100">
+                        <i class="fas fa-filter text-gray-500"></i>
                     </div>
-                    <h2 class="card-title">Unverarbeitete Mails</h2>
+                    <h2 class="settings-card-title">Mail-Filter</h2>
                 </div>
-                <p class="card-description">Diese Mails wurde noch nicht weiter verarbeitet oder konnten keinem Job zugewiesen werden</p>
+                <p class="settings-card-desc">Hier können Filter für das automatische Aussortieren von Mails konfiguriert werden</p>
             </a>
 
-            <a href="./all-mails" class="card">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <img src="./all-mails/bug.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
+            <a href="./unprocessed-mails" class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-card-icon bg-orange-50">
+                        <i class="fas fa-inbox text-orange-500"></i>
                     </div>
-                    <h2 class="card-title">Alle Mails</h2>
+                    <h2 class="settings-card-title">Unverarbeitete Mails</h2>
                 </div>
-                <p class="card-description">Liste aller gespeicherten Mails inkl. zugeordneter Backup-Jobs und Ergebnisse (für Troubleshooting)</p>
+                <p class="settings-card-desc">Diese Mails wurden noch nicht weiter verarbeitet oder konnten keinem Job zugewiesen werden</p>
             </a>
 
-            <a href="./mail-filter" class="card">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <img src="./mail-filter/trash.png" alt="Backup Icon von https://thenounproject.com/creator/denovo-agency/">
+            <a href="./all-mails" class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-card-icon bg-red-50">
+                        <i class="fas fa-bug text-red-500"></i>
                     </div>
-                    <h2 class="card-title">Mail-Filter</h2>
+                    <h2 class="settings-card-title">Alle Mails</h2>
                 </div>
-                <p class="card-description">Hier können Filter für das automatische Aussortieren von Mails konfiguriert werden</p>
+                <p class="settings-card-desc">Liste aller gespeicherten Mails inkl. zugeordneter Backup-Jobs und Ergebnisse (für Troubleshooting)</p>
             </a>
+
         </div>
 
-        <h2 style="font-size: 1.75rem; margin-bottom: 2rem; margin-top: 4rem; text-align: left; padding-left: 1.5rem; color: #374151;">Weitere Statistiken und Statusmeldungen</h2>
 
-        <div class="cards-container">
-            <a href="./mailstore-info" class="card">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <img src="./mailstore-info/detail.png" alt="Icon von https://thenounproject.com/creator/UBicon/">
-                    </div>
-                    <h2 class="card-title">Mailstore Informationen</h2>
-                </div>
-                <p class="card-description">Erhalte weitere Infos von Mailstore, wie Version, Lizenzgröße, Lizenzablaufdatum, ...</p>
-            </a>
-
-            <a href="./veeam-health-info" class="card">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <img src="./veeam-health-info/health.png" alt="Icon von https://thenounproject.com/creator/muhammadriza/">
-                    </div>
-                    <h2 class="card-title">Veeam Backup Health</h2>
-                </div>
-                <p class="card-description">Veeam prüft einmal im Monat die Integrität der Backup-Dateien. Diese Info kann genutzt werden, um korrumpierte Backups zu identifizieren.</p>
-            </a>
-
-            <a href="./nas-disks-info" class="card">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <img src="./nas-disks-info/nas.png" alt="Icon von https://thenounproject.com/creator/eckstein/">
-                    </div>
-                    <h2 class="card-title">Synology Festplatten</h2>
-                </div>
-                <p class="card-description">Synology NAS-Geräte prüfen einmal im Monat einen Gesundheitsstatus der installieren Festplatten.</p>
-            </a>
+        <!-- ============================================================
+             WEITERE STATISTIKEN UND STATUSMELDUNGEN
+             ============================================================ -->
+        <div class="content-card mb-6" style="padding: 0; border: none; box-shadow: none; background: transparent;">
+            <div class="section-header" style="margin-bottom: 1.5rem; margin-top: 1rem;">
+                <h2 class="section-title">Weitere Statistiken und Statusmeldungen</h2>
+            </div>
         </div>
-    </div>
 
-    <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-4 z-10">
-        <div class="container mx-auto text-center">
-            Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller</a>
+        <div class="settings-grid mb-6">
+
+            <a href="./mailstore-info" class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-card-icon bg-blue-50">
+                        <i class="fas fa-info-circle text-blue-500"></i>
+                    </div>
+                    <h2 class="settings-card-title">Mailstore Informationen</h2>
+                </div>
+                <p class="settings-card-desc">Erhalte weitere Infos von Mailstore, wie Version, Lizenzgröße, Lizenzablaufdatum, ...</p>
+            </a>
+
+            <a href="./veeam-health-info" class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-card-icon bg-green-50">
+                        <i class="fas fa-heartbeat text-green-500"></i>
+                    </div>
+                    <h2 class="settings-card-title">Veeam Backup Health</h2>
+                </div>
+                <p class="settings-card-desc">Veeam prüft einmal im Monat die Integrität der Backup-Dateien. Diese Info kann genutzt werden, um korrumpierte Backups zu identifizieren.</p>
+            </a>
+
+            <a href="./nas-disks-info" class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-card-icon bg-orange-50">
+                        <i class="fas fa-hdd text-orange-500"></i>
+                    </div>
+                    <h2 class="settings-card-title">Synology Festplatten</h2>
+                </div>
+                <p class="settings-card-desc">Synology NAS-Geräte prüfen einmal im Monat einen Gesundheitsstatus der installierten Festplatten.</p>
+            </a>
+
         </div>
+
+    </div><!-- /container -->
+
+
+    <!-- ============================================================
+         FOOTER
+         ============================================================ -->
+    <footer class="app-footer">
+        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller</a>
     </footer>
+
+
+    <!-- ============================================================
+         JAVASCRIPT (nur app.js für Grundfunktionen)
+         ============================================================ -->
+    <script src="../includes/app.js"></script>
 
 </body>
 </html>

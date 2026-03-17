@@ -1,20 +1,16 @@
 <?php
-// Config einbinden
+/**
+ * BACKUP-JOBS VERWALTUNG
+ * 
+ * Pfad:    /settings/backup-jobs/index.php
+ * Includes: ../../includes/styles.css, ../../includes/app.js
+ */
+
 $config = require_once '../../config.php';
-
-// Datenbankverbindung herstellen
-$conn = new mysqli(
-    $config['server'],
-    $config['user'], 
-    $config['password'],
-    $config['database']
-);
-
-// Fehlerbehandlung
-if ($conn->connect_error) {
-    die('Verbindungsfehler: ' . $conn->connect_error);
-}
+$conn = new mysqli($config['server'], $config['user'], $config['password'], $config['database']);
+if ($conn->connect_error) { die('Verbindungsfehler: ' . $conn->connect_error); }
 $conn->set_charset('utf8mb4');
+if (!isset($_SESSION)) { session_start(); }
 
 // POST-Verarbeitung
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -31,19 +27,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $search_term_text2 = $conn->real_escape_string($_POST['search_term_text2'] ?? '');
                 $include_in_report = isset($_POST['include_in_report']) ? 1 : 0;
                 $ignore_hours = !empty($_POST['ignore_no_status_updates_for_x_hours']) ? (int)$_POST['ignore_no_status_updates_for_x_hours'] : 'NULL';
-                
-                $sql = "INSERT INTO backup_jobs (customer_id, name, note, backup_type, 
-                        search_term_mail, search_term_subject, search_term_text, search_term_text2,
-                        include_in_report, ignore_no_status_updates_for_x_hours) 
-                        VALUES ($customer_id, '$name', '$note', '$backup_type', 
-                        '$search_term_mail', '$search_term_subject', '$search_term_text', '$search_term_text2',
-                        $include_in_report, $ignore_hours)";
-                $conn->query($sql);
-                
+                $conn->query("INSERT INTO backup_jobs (customer_id, name, note, backup_type, search_term_mail, search_term_subject, search_term_text, search_term_text2, include_in_report, ignore_no_status_updates_for_x_hours) VALUES ($customer_id, '$name', '$note', '$backup_type', '$search_term_mail', '$search_term_subject', '$search_term_text', '$search_term_text2', $include_in_report, $ignore_hours)");
                 $_SESSION['message'] = "Backup-Job erfolgreich erstellt.";
                 $_SESSION['message_type'] = "success";
                 break;
-
             case 'edit':
                 $id = (int)$_POST['id'];
                 $customer_id = (int)$_POST['customer_id'];
@@ -56,30 +43,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $search_term_text2 = $conn->real_escape_string($_POST['search_term_text2'] ?? '');
                 $include_in_report = isset($_POST['include_in_report']) ? 1 : 0;
                 $ignore_hours = !empty($_POST['ignore_no_status_updates_for_x_hours']) ? (int)$_POST['ignore_no_status_updates_for_x_hours'] : 'NULL';
-
-                $sql = "UPDATE backup_jobs SET 
-                        customer_id=$customer_id, 
-                        name='$name', 
-                        note='$note', 
-                        backup_type='$backup_type',
-                        search_term_mail='$search_term_mail',
-                        search_term_subject='$search_term_subject',
-                        search_term_text='$search_term_text',
-                        search_term_text2='$search_term_text2',
-                        include_in_report=$include_in_report,
-                        ignore_no_status_updates_for_x_hours=$ignore_hours
-                        WHERE id=$id";
-                $conn->query($sql);
-                
+                $conn->query("UPDATE backup_jobs SET customer_id=$customer_id, name='$name', note='$note', backup_type='$backup_type', search_term_mail='$search_term_mail', search_term_subject='$search_term_subject', search_term_text='$search_term_text', search_term_text2='$search_term_text2', include_in_report=$include_in_report, ignore_no_status_updates_for_x_hours=$ignore_hours WHERE id=$id");
                 $_SESSION['message'] = "Backup-Job erfolgreich aktualisiert.";
                 $_SESSION['message_type'] = "success";
                 break;
-
             case 'delete':
                 $id = (int)$_POST['id'];
-                $sql = "DELETE FROM backup_jobs WHERE id=$id";
-                $conn->query($sql);
-                
+                $conn->query("DELETE FROM backup_jobs WHERE id=$id");
                 $_SESSION['message'] = "Backup-Job erfolgreich gelöscht.";
                 $_SESSION['message_type'] = "success";
                 break;
@@ -89,1049 +59,249 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-// Such- und Filterparameter verarbeiten
 $search = isset($_GET['search']) ? $conn->real_escape_string($_GET['search']) : '';
 $customer_filter = isset($_GET['customer_filter']) ? (int)$_GET['customer_filter'] : 0;
 $backup_type_filter = isset($_GET['backup_type_filter']) ? $conn->real_escape_string($_GET['backup_type_filter']) : '';
 $sort_by = isset($_GET['sort_by']) ? $conn->real_escape_string($_GET['sort_by']) : 'name';
 $sort_order = isset($_GET['sort_order']) ? $conn->real_escape_string($_GET['sort_order']) : 'ASC';
+if (!in_array($sort_by, ['name', 'customer_name', 'backup_type'])) $sort_by = 'name';
+if (!in_array($sort_order, ['ASC', 'DESC'])) $sort_order = 'ASC';
 
-// Gültige Sortierfelder prüfen
-$valid_sort_fields = ['name', 'customer_name', 'backup_type'];
-if (!in_array($sort_by, $valid_sort_fields)) {
-    $sort_by = 'name';
-}
-
-// Gültige Sortierreihenfolge prüfen
-$valid_sort_orders = ['ASC', 'DESC'];
-if (!in_array($sort_order, $valid_sort_orders)) {
-    $sort_order = 'ASC';
-}
-
-// Paginierung
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$items_per_page = isset($_GET['items_per_page']) ? (int)$_GET['items_per_page'] : 10;
+$page = max(1, isset($_GET['page']) ? (int)$_GET['page'] : 1);
+$items_per_page = max(50, min(200, isset($_GET['items_per_page']) ? (int)$_GET['items_per_page'] : 50));
 $offset = ($page - 1) * $items_per_page;
 
-// Standardwerte für ungültige Eingaben
-if ($page < 1) $page = 1;
-if ($items_per_page < 50) $items_per_page = 50;
-if ($items_per_page > 200) $items_per_page = 200;
-
-// Backup-Typen für Filter abrufen
-$backup_types_result = $conn->query("SELECT DISTINCT backup_type FROM backup_jobs WHERE backup_type != '' ORDER BY backup_type");
 $backup_types = [];
-while ($type = $backup_types_result->fetch_assoc()) {
-    $backup_types[] = $type['backup_type'];
-}
+$btr = $conn->query("SELECT DISTINCT backup_type FROM backup_jobs WHERE backup_type != '' ORDER BY backup_type");
+while ($t = $btr->fetch_assoc()) $backup_types[] = $t['backup_type'];
 
-// Basis-SQL-Abfrage für Backup-Jobs
-$sql_base = "
-    FROM backup_jobs b 
-    LEFT JOIN customers c ON b.customer_id = c.id 
-    WHERE 1=1
-";
+$sql_base = "FROM backup_jobs b LEFT JOIN customers c ON b.customer_id = c.id WHERE 1=1";
+if (!empty($search)) $sql_base .= " AND (b.name LIKE '%$search%' OR c.name LIKE '%$search%' OR b.backup_type LIKE '%$search%' OR b.note LIKE '%$search%' OR b.search_term_mail LIKE '%$search%' OR b.search_term_subject LIKE '%$search%' OR b.search_term_text LIKE '%$search%')";
+if ($customer_filter > 0) $sql_base .= " AND b.customer_id = $customer_filter";
+if (!empty($backup_type_filter)) $sql_base .= " AND b.backup_type = '$backup_type_filter'";
 
-// Suchfilter anwenden
-if (!empty($search)) {
-    $sql_base .= " AND (
-        b.name LIKE '%$search%' OR 
-        c.name LIKE '%$search%' OR 
-        b.backup_type LIKE '%$search%' OR 
-        b.note LIKE '%$search%' OR
-        b.search_term_mail LIKE '%$search%' OR
-        b.search_term_subject LIKE '%$search%' OR
-        b.search_term_text LIKE '%$search%'
-    )";
-}
-
-// Kundenfilter anwenden
-if ($customer_filter > 0) {
-    $sql_base .= " AND b.customer_id = $customer_filter";
-}
-
-// Backup-Typ-Filter anwenden
-if (!empty($backup_type_filter)) {
-    $sql_base .= " AND b.backup_type = '$backup_type_filter'";
-}
-
-// Gesamtanzahl der Ergebnisse für Paginierung ermitteln
-$count_sql = "SELECT COUNT(*) AS total " . $sql_base;
-$count_result = $conn->query($count_sql);
-$total_items = $count_result->fetch_assoc()['total'];
+$total_items = $conn->query("SELECT COUNT(*) AS total " . $sql_base)->fetch_assoc()['total'];
 $total_pages = ceil($total_items / $items_per_page);
+if ($page > $total_pages && $total_pages > 0) { $page = $total_pages; $offset = ($page - 1) * $items_per_page; }
 
-// Wenn aktuelle Seite größer als Gesamtseitenanzahl, zur letzten Seite wechseln
-if ($page > $total_pages && $total_pages > 0) {
-    $page = $total_pages;
-    $offset = ($page - 1) * $items_per_page;
-}
+$order_col = ($sort_by === 'customer_name') ? 'c.name' : "b.$sort_by";
+$result = $conn->query("SELECT b.*, c.name as customer_name $sql_base ORDER BY $order_col $sort_order LIMIT $offset, $items_per_page");
 
-// Daten mit Paginierung und Sortierung abrufen
-$sql = "
-    SELECT b.*, c.name as customer_name 
-    $sql_base
-    ORDER BY " . ($sort_by === 'customer_name' ? 'c.name' : "b.$sort_by") . " $sort_order
-    LIMIT $offset, $items_per_page
-";
-$result = $conn->query($sql);
-
-// Kunden abrufen
-$customers_result = $conn->query("SELECT id, name FROM customers ORDER BY name");
 $customers = [];
-while ($customer = $customers_result->fetch_assoc()) {
-    $customers[$customer['id']] = $customer['name'];
-}
+$cr = $conn->query("SELECT id, name FROM customers ORDER BY name");
+while ($c = $cr->fetch_assoc()) $customers[$c['id']] = $c['name'];
 
-// Funktion zum Generieren von Sortierlinks
-function getSortLink($field, $current_sort_by, $current_sort_order) {
-    $params = $_GET;
-    $params['sort_by'] = $field;
-    $params['sort_order'] = ($current_sort_by === $field && $current_sort_order === 'ASC') ? 'DESC' : 'ASC';
-    
-    return '?' . http_build_query($params);
-}
+function getSortLink($f, $csb, $cso) { $p = $_GET; $p['sort_by'] = $f; $p['sort_order'] = ($csb === $f && $cso === 'ASC') ? 'DESC' : 'ASC'; return '?' . http_build_query($p); }
+function getPaginationLink($pn) { $p = $_GET; $p['page'] = $pn; return '?' . http_build_query($p); }
+function getFilterLink($k, $v) { $p = $_GET; if ($v === '') unset($p[$k]); else $p[$k] = $v; $p['page'] = 1; return '?' . http_build_query($p); }
+function getSortIndicator($f, $csb, $cso) { return ($csb === $f) ? (($cso === 'ASC') ? ' ▲' : ' ▼') : ''; }
 
-// Funktion zum Generieren von Paginierungslinks
-function getPaginationLink($page_num) {
-    $params = $_GET;
-    $params['page'] = $page_num;
-    
-    return '?' . http_build_query($params);
-}
-
-// Funktion zum Generieren von Filter-Links
-function getFilterLink($param_name, $param_value) {
-    $params = $_GET;
-    if ($param_value === '') {
-        unset($params[$param_name]);
-    } else {
-        $params[$param_name] = $param_value;
-    }
-    $params['page'] = 1; // Bei Filteränderung zurück zur ersten Seite
-    
-    return '?' . http_build_query($params);
-}
-
-// Funktion zum Anzeigen des Sortierungspfeils
-function getSortIndicator($field, $current_sort_by, $current_sort_order) {
-    if ($current_sort_by === $field) {
-        return ($current_sort_order === 'ASC') ? ' ▲' : ' ▼';
-    }
-    return '';
-}
-
-// Session-Nachrichten initialisieren, falls nicht vorhanden
-if (!isset($_SESSION)) {
-    session_start();
-}
+$jsMsg = ''; $jsMsgType = '';
+if (isset($_SESSION['message'])) { $jsMsg = addslashes($_SESSION['message']); $jsMsgType = $_SESSION['message_type'] ?? 'success'; unset($_SESSION['message']); unset($_SESSION['message_type']); }
 ?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Backup-Jobs Verwaltung</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Backup-Jobs – Backup-Monitor</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="../../includes/styles.css" rel="stylesheet">
     <style>
-        :root {
-            --primary-color: #2563eb;
-            --primary-hover: #1d4ed8;
-            --primary-light: #dbeafe;
-            --secondary-color: #4b5563;
-            --danger-color: #dc2626;
-            --danger-hover: #b91c1c;
-            --success-color: #10b981;
-            --warning-color: #f59e0b;
-            --background-color: #f9fafb;
-            --card-background: #ffffff;
-            --border-color: #e5e7eb;
-            --text-color: #1f2937;
-            --text-secondary: #6b7280;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            line-height: 1.5;
-            color: var(--text-color);
-            background-color: var(--background-color);
-            padding: 1rem;
-        }
-
-        .container {
-            width: 100%;
-            margin: 0 auto;
-        }
-
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-        }
-
-        h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--text-color);
-        }
-
-        h2 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: var(--text-color);
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
-        }
-
-        @media (min-width: 1024px) {
-            .grid {
-                grid-template-columns: 350px 1fr;
-            }
-        }
-
-        .card {
-            background: var(--card-background);
-            border-radius: 0.5rem;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-            padding: 1.5rem;
-        }
-
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 0.375rem;
-            font-weight: 500;
-            color: var(--text-color);
-        }
-
-        .required::after {
-            content: " *";
-            color: var(--danger-color);
-        }
-
-        input[type="text"], textarea, select {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid var(--border-color);
-            border-radius: 0.375rem;
-            font-size: 0.875rem;
-            transition: border-color 0.15s ease-in-out;
-        }
-
-        input[type="text"]:focus, textarea:focus, select:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        textarea {
-            min-height: 80px;
-            resize: vertical;
-        }
-
-        button, .btn {
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 0.375rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s ease-in-out;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.375rem;
-        }
-
-        .btn-primary {
-            background-color: var(--primary-color);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background-color: var(--primary-hover);
-        }
-
-        .btn-secondary {
-            background-color: var(--secondary-color);
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background-color: var(--text-color);
-        }
-
-        .btn-danger {
-            background-color: var(--danger-color);
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background-color: var(--danger-hover);
-        }
-
-        .btn-sm {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.75rem;
-        }
-
-        .filter-controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-            margin-bottom: 1rem;
-            padding: 1rem;
-            background-color: var(--card-background);
-            border-radius: 0.5rem;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-        }
-
-        .search-box {
-            flex: 1;
-            min-width: 200px;
-            display: flex;
-        }
-
-        .search-box input {
-            flex: 1;
-            border-radius: 0.375rem 0 0 0.375rem;
-            border-right: none;
-        }
-
-        .search-box button {
-            border-radius: 0 0.375rem 0.375rem 0;
-        }
-
-        .filter-group {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .filter-group select {
-            min-width: 150px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            margin-top: 1rem;
-        }
-
-        th {
-            background-color: var(--background-color);
-            padding: 0.75rem;
-            text-align: left;
-            font-weight: 600;
-            border-bottom: 2px solid var(--border-color);
-            white-space: nowrap;
-        }
-
-        th a {
-            color: var(--text-color);
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        td {
-            padding: 0.75rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        tr:hover {
-            background-color: var(--primary-light);
-        }
-
-        .truncate {
-            max-width: 150px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .actions {
-            display: flex;
-            gap: 0.5rem;
-            white-space: nowrap;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.25rem;
-            font-size: 0.75rem;
-            font-weight: 500;
-            background-color: var(--primary-light);
-            color: var(--primary-color);
-        }
-
-        .pagination {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 1.5rem;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-
-        .pagination-info {
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-        }
-
-        .pagination-controls {
-            display: flex;
-            gap: 0.25rem;
-        }
-
-        .pagination-controls a, .pagination-controls span {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 2rem;
-            height: 2rem;
-            padding: 0 0.5rem;
-            border-radius: 0.375rem;
-            background-color: var(--card-background);
-            color: var(--text-color);
-            text-decoration: none;
-            font-size: 0.875rem;
-            border: 1px solid var(--border-color);
-        }
-
-        .pagination-controls a:hover {
-            background-color: var(--primary-light);
-            color: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-
-        .pagination-controls .active {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-        }
-
-        .modal-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: var(--card-background);
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            width: 90%;
-            max-width: 600px;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .form-section-divider {
-            margin: 1.5rem 0 1rem 0;
-            padding-top: 1rem;
-            border-top: 1px solid var(--border-color);
-            font-weight: 600;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-        }
-
-        .toggle-switch {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 0.5rem;
-        }
-
-        .toggle-switch label {
-            flex: 1;
-            margin-bottom: 0;
-            font-weight: 500;
-            color: var(--text-color);
-        }
-
-        .toggle-switch input[type="checkbox"] {
-            width: 44px;
-            height: 24px;
-            appearance: none;
-            background-color: var(--border-color);
-            border-radius: 12px;
-            position: relative;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            flex-shrink: 0;
-        }
-
-        .toggle-switch input[type="checkbox"]:checked {
-            background-color: var(--success-color);
-        }
-
-        .toggle-switch input[type="checkbox"]::before {
-            content: '';
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background-color: white;
-            top: 2px;
-            left: 2px;
-            transition: transform 0.2s;
-        }
-
-        .toggle-switch input[type="checkbox"]:checked::before {
-            transform: translateX(20px);
-        }
-
-        .form-hint {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            margin-top: 0.25rem;
-            line-height: 1.4;
-        }
-
-        input[type="number"] {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid var(--border-color);
-            border-radius: 0.375rem;
-            font-size: 0.875rem;
-            transition: border-color 0.15s ease-in-out;
-        }
-
-        input[type="number"]:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .modal-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.5rem;
-            margin-top: 1.5rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--border-color);
-        }
-
-        .close-modal {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: var(--text-secondary);
-        }
-
-        .alert {
-            padding: 0.75rem 1rem;
-            margin-bottom: 1rem;
-            border-radius: 0.375rem;
-            font-size: 0.875rem;
-        }
-
-        .alert-success {
-            background-color: rgba(16, 185, 129, 0.1);
-            color: var(--success-color);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-        }
-
-        .alert-danger {
-            background-color: rgba(220, 38, 38, 0.1);
-            color: var(--danger-color);
-            border: 1px solid rgba(220, 38, 38, 0.2);
-        }
-
-        .responsive-table {
-            overflow-x: auto;
-        }
-
-        @media (max-width: 768px) {
-            .filter-controls {
-                flex-direction: column;
-                gap: 0.5rem;
-            }
-            
-            .search-box, .filter-group {
-                width: 100%;
-            }
-            
-            .card {
-                padding: 1rem;
-            }
-            
-            table th, table td {
-                padding: 0.5rem;
-            }
-            
-            .actions {
-                flex-direction: column;
-            }
-        }
-
-        .btn-back {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 0.5rem;
-            color: var(--text-color);
-            text-decoration: none;
-            transition: all 0.15s ease-in-out;
-            border: 1px solid var(--border-color);
-        }
-
-        .btn-back:hover {
-            color: var(--primary-color);
-            border-color: var(--primary-color);
-            background-color: rgba(37, 99, 235, 0.05);
-        }
-
-        header {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        /* Ändere das bisherige header-Flexbox-Verhalten */
-        header h1 {
-            margin-right: auto;
-        }
-
+        .pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+        .pagination-info { color: var(--color-gray-500); font-size: 0.875rem; }
+        .pagination-controls { display: flex; gap: 0.25rem; }
+        .pagination-controls a, .pagination-controls span { display: inline-flex; align-items: center; justify-content: center; min-width: 2rem; height: 2rem; padding: 0 0.5rem; border-radius: var(--border-radius); background: #fff; color: var(--color-gray-700); text-decoration: none; font-size: 0.875rem; border: 1px solid var(--color-gray-200); }
+        .pagination-controls a:hover { background: var(--color-primary-light); color: var(--color-primary); border-color: var(--color-primary); }
+        .pagination-controls .active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+        .truncate { max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .toggle-switch { display: flex; align-items: center; justify-content: space-between; }
+        .toggle-switch input[type="checkbox"] { width: 44px; height: 24px; appearance: none; background-color: var(--color-gray-300); border-radius: 12px; position: relative; cursor: pointer; transition: background-color 0.2s; flex-shrink: 0; }
+        .toggle-switch input[type="checkbox"]:checked { background-color: var(--color-success); }
+        .toggle-switch input[type="checkbox"]::before { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: transform 0.2s; }
+        .toggle-switch input[type="checkbox"]:checked::before { transform: translateX(20px); }
+        .form-hint { font-size: 0.75rem; color: var(--color-gray-500); margin-top: 0.25rem; line-height: 1.4; }
     </style>
 </head>
 <body>
-    <div class="container">
-    <header>
-        <a href="../" class="btn-back">
-            <i class="fas fa-arrow-left"></i>
-        </a>
-        <h1>Backup-Jobs Verwaltung</h1>
-        <button type="button" class="btn btn-primary" onclick="showAddModal()">
-            <i class="fas fa-plus"></i> Neuen Job anlegen
-        </button>
-    </header>
+    <div class="container mx-auto px-4 py-6">
 
-        <?php if (isset($_SESSION['message'])): ?>
-            <div class="alert alert-<?= $_SESSION['message_type'] ?>">
-                <?= $_SESSION['message'] ?>
+        <header class="page-header">
+            <a href="../" class="back-button"><i class="fas fa-arrow-left"></i></a>
+            <div class="page-header-title">
+                <h1>Backup-Jobs Verwaltung</h1>
+                <p><?= $total_items ?> Jobs</p>
             </div>
-            <?php 
-                unset($_SESSION['message']);
-                unset($_SESSION['message_type']);
-            ?>
-        <?php endif; ?>
+            <button onclick="openModal('addModal')" class="btn btn-primary"><i class="fas fa-plus"></i> Neuen Job anlegen</button>
+        </header>
 
-        <!-- Filter und Suchleiste -->
-        <div class="filter-controls">
-            <form method="get" class="search-box">
-                <input type="text" name="search" placeholder="Suche..." value="<?= htmlspecialchars($search) ?>">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-search"></i>
-                </button>
-            </form>
-            
-            <div class="filter-group">
-                <label for="customer_filter">Kunde:</label>
-                <select id="customer_filter" onchange="window.location=this.value">
+        <div class="content-card mb-6" style="padding: 1rem;">
+            <div class="search-bar-inner">
+                <form method="get" style="flex: 1; display: flex;">
+                    <div class="search-input-wrapper" style="flex: 1;">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" name="search" class="search-input" placeholder="Suche..." value="<?= htmlspecialchars($search) ?>">
+                    </div>
+                </form>
+                <select class="form-select" style="width: auto;" onchange="window.location=this.value">
                     <option value="<?= getFilterLink('customer_filter', '') ?>">Alle Kunden</option>
                     <?php foreach ($customers as $id => $name): ?>
-                        <option value="<?= getFilterLink('customer_filter', $id) ?>" <?= $customer_filter == $id ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($name) ?>
-                        </option>
+                        <option value="<?= getFilterLink('customer_filter', $id) ?>" <?= $customer_filter == $id ? 'selected' : '' ?>><?= htmlspecialchars($name) ?></option>
                     <?php endforeach; ?>
                 </select>
-            </div>
-            
-            <div class="filter-group">
-                <label for="backup_type_filter">Backup-Typ:</label>
-                <select id="backup_type_filter" onchange="window.location=this.value">
+                <select class="form-select" style="width: auto;" onchange="window.location=this.value">
                     <option value="<?= getFilterLink('backup_type_filter', '') ?>">Alle Typen</option>
                     <?php foreach ($backup_types as $type): ?>
-                        <option value="<?= getFilterLink('backup_type_filter', $type) ?>" <?= $backup_type_filter == $type ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($type) ?>
-                        </option>
+                        <option value="<?= getFilterLink('backup_type_filter', $type) ?>" <?= $backup_type_filter == $type ? 'selected' : '' ?>><?= htmlspecialchars($type) ?></option>
                     <?php endforeach; ?>
                 </select>
-            </div>
-            
-            <div class="filter-group">
-                <label for="items_per_page">Anzeigen:</label>
-                <select id="items_per_page" onchange="window.location=this.value">
-                    <?php foreach ([50, 100, 200] as $value): ?>
-                        <option value="<?= getFilterLink('items_per_page', $value) ?>" <?= $items_per_page == $value ? 'selected' : '' ?>>
-                            <?= $value ?> pro Seite
-                        </option>
+                <select class="form-select" style="width: auto;" onchange="window.location=this.value">
+                    <?php foreach ([50, 100, 200] as $v): ?>
+                        <option value="<?= getFilterLink('items_per_page', $v) ?>" <?= $items_per_page == $v ? 'selected' : '' ?>><?= $v ?> pro Seite</option>
                     <?php endforeach; ?>
                 </select>
+                <?php if (!empty($search) || $customer_filter > 0 || !empty($backup_type_filter)): ?>
+                    <a href="?" class="btn btn-outline btn-sm"><i class="fas fa-times"></i> Zurücksetzen</a>
+                <?php endif; ?>
             </div>
-            
-            <?php if (!empty($search) || $customer_filter > 0 || !empty($backup_type_filter)): ?>
-                <a href="?" class="btn btn-secondary btn-sm">
-                    <i class="fas fa-times"></i> Filter zurücksetzen
-                </a>
-            <?php endif; ?>
         </div>
 
-        <!-- Backup-Jobs Liste -->
-        <div class="card">
-            <h2>Backup-Jobs Liste</h2>
-            
+        <div class="content-card mb-6">
+            <div class="section-header"><h2 class="section-title">Backup-Jobs Liste</h2></div>
             <?php if ($total_items == 0): ?>
-                <p>Keine Backup-Jobs gefunden. <?= !empty($search) || $customer_filter > 0 || !empty($backup_type_filter) ? 'Versuche die Filtereinstellungen zu ändern.' : '' ?></p>
+                <div class="empty-state"><i class="fas fa-database"></i><p>Keine Backup-Jobs gefunden.</p></div>
             <?php else: ?>
-                <div class="responsive-table">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th><a href="<?= getSortLink('name', $sort_by, $sort_order) ?>">Name<?= getSortIndicator('name', $sort_by, $sort_order) ?></a></th>
-                                <th><a href="<?= getSortLink('customer_name', $sort_by, $sort_order) ?>">Kunde<?= getSortIndicator('customer_name', $sort_by, $sort_order) ?></a></th>
-                                <th><a href="<?= getSortLink('backup_type', $sort_by, $sort_order) ?>">Backup-Typ<?= getSortIndicator('backup_type', $sort_by, $sort_order) ?></a></th>
-                                <th>Notiz</th>
-                                <th>Aktionen</th>
-                            </tr>
-                        </thead>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead><tr>
+                            <th><a href="<?= getSortLink('name', $sort_by, $sort_order) ?>" style="color:inherit;text-decoration:none;">Name<?= getSortIndicator('name', $sort_by, $sort_order) ?></a></th>
+                            <th><a href="<?= getSortLink('customer_name', $sort_by, $sort_order) ?>" style="color:inherit;text-decoration:none;">Kunde<?= getSortIndicator('customer_name', $sort_by, $sort_order) ?></a></th>
+                            <th><a href="<?= getSortLink('backup_type', $sort_by, $sort_order) ?>" style="color:inherit;text-decoration:none;">Backup-Typ<?= getSortIndicator('backup_type', $sort_by, $sort_order) ?></a></th>
+                            <th>Notiz</th>
+                            <th class="text-right">Aktionen</th>
+                        </tr></thead>
                         <tbody>
                             <?php while ($row = $result->fetch_assoc()): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($row['name']) ?></td>
-                                    <td><?= htmlspecialchars($row['customer_name']) ?></td>
-                                    <td>
-                                        <?php if (!empty($row['backup_type'])): ?>
-                                            <span class="badge"><?= htmlspecialchars($row['backup_type']) ?></span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if (!empty($row['note'])): ?>
-                                            <div class="truncate" title="<?= htmlspecialchars($row['note']) ?>">
-                                                <?= htmlspecialchars($row['note']) ?>
-                                            </div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td class="actions">
-                                        <button class="btn btn-primary btn-sm" onclick='editJob(<?= json_encode($row) ?>)'>
-                                            <i class="fas fa-edit"></i> Bearbeiten
-                                        </button>
-                                        <button class="btn btn-danger btn-sm" onclick='confirmDelete(<?= $row["id"] ?>, "<?= addslashes(htmlspecialchars($row["name"])) ?>")'>
-                                            <i class="fas fa-trash"></i> Löschen
-                                        </button>
-                                    </td>
-                                </tr>
+                            <tr>
+                                <td><span class="font-medium text-gray-900"><?= htmlspecialchars($row['name']) ?></span></td>
+                                <td><?= htmlspecialchars($row['customer_name']) ?></td>
+                                <td><?php if (!empty($row['backup_type'])): ?><span class="badge badge-primary"><?= htmlspecialchars($row['backup_type']) ?></span><?php endif; ?></td>
+                                <td><?php if (!empty($row['note'])): ?><div class="truncate" title="<?= htmlspecialchars($row['note']) ?>"><?= htmlspecialchars($row['note']) ?></div><?php endif; ?></td>
+                                <td class="text-right">
+                                    <button onclick='editJob(<?= json_encode($row) ?>)' class="btn-inline edit" title="Bearbeiten"><i class="fas fa-edit"></i></button>
+                                    <button onclick='confirmDeleteJob(<?= $row["id"] ?>, "<?= addslashes(htmlspecialchars($row["name"])) ?>")' class="btn-inline delete" title="Löschen"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
                             <?php endwhile; ?>
                         </tbody>
                     </table>
                 </div>
-                
-                <!-- Paginierung -->
                 <div class="pagination">
-                    <div class="pagination-info">
-                        Zeige <?= ($offset + 1) ?>-<?= min($offset + $items_per_page, $total_items) ?> von <?= $total_items ?> Einträgen
-                    </div>
+                    <div class="pagination-info">Zeige <?= ($offset + 1) ?>–<?= min($offset + $items_per_page, $total_items) ?> von <?= $total_items ?></div>
                     <div class="pagination-controls">
-                        <?php if ($page > 1): ?>
-                            <a href="<?= getPaginationLink(1) ?>"><i class="fas fa-angle-double-left"></i></a>
-                            <a href="<?= getPaginationLink($page - 1) ?>"><i class="fas fa-angle-left"></i></a>
-                        <?php endif; ?>
-                        
-                        <?php
-                        $range = 2;
-                        $start_page = max(1, $page - $range);
-                        $end_page = min($total_pages, $page + $range);
-                        
-                        if ($start_page > 1) {
-                            echo '<span>...</span>';
-                        }
-                        
-                        for ($i = $start_page; $i <= $end_page; $i++) {
-                            if ($i == $page) {
-                                echo "<span class=\"active\">$i</span>";
-                            } else {
-                                echo "<a href=\"" . getPaginationLink($i) . "\">$i</a>";
-                            }
-                        }
-                        
-                        if ($end_page < $total_pages) {
-                            echo '<span>...</span>';
-                        }
-                        
-                        if ($page < $total_pages): ?>
-                            <a href="<?= getPaginationLink($page + 1) ?>"><i class="fas fa-angle-right"></i></a>
-                            <a href="<?= getPaginationLink($total_pages) ?>"><i class="fas fa-angle-double-right"></i></a>
-                        <?php endif; ?>
+                        <?php if ($page > 1): ?><a href="<?= getPaginationLink(1) ?>"><i class="fas fa-angle-double-left"></i></a><a href="<?= getPaginationLink($page - 1) ?>"><i class="fas fa-angle-left"></i></a><?php endif; ?>
+                        <?php $r=2;$sp=max(1,$page-$r);$ep=min($total_pages,$page+$r);if($sp>1)echo'<span>...</span>';for($i=$sp;$i<=$ep;$i++){echo($i==$page)?"<span class=\"active\">$i</span>":"<a href=\"".getPaginationLink($i)."\">$i</a>";}if($ep<$total_pages)echo'<span>...</span>'; ?>
+                        <?php if ($page < $total_pages): ?><a href="<?= getPaginationLink($page + 1) ?>"><i class="fas fa-angle-right"></i></a><a href="<?= getPaginationLink($total_pages) ?>"><i class="fas fa-angle-double-right"></i></a><?php endif; ?>
                     </div>
                 </div>
             <?php endif; ?>
         </div>
-
-        <!-- Modal für neuen Backup-Job -->
-        <div id="addModal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Neuen Backup-Job anlegen</h2>
-                    <button type="button" class="close-modal" onclick="closeModal('addModal')">&times;</button>
-                </div>
-                <form method="post">
-                    <input type="hidden" name="action" value="add">
-                    <div class="form-group">
-                        <label for="customer_id" class="required">Kunde:</label>
-                        <select id="customer_id" name="customer_id" required>
-                            <option value="">Bitte wählen...</option>
-                            <?php foreach ($customers as $id => $name): ?>
-                                <option value="<?= $id ?>"><?= htmlspecialchars($name) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="name" class="required">Name des Backup-Jobs:</label>
-                        <input type="text" id="name" name="name" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="backup_type">Backup-Typ:</label>
-                        <input type="text" id="backup_type" name="backup_type" list="backup_type_list">
-                        <datalist id="backup_type_list">
-                            <?php foreach ($backup_types as $type): ?>
-                                <option value="<?= htmlspecialchars($type) ?>">
-                            <?php endforeach; ?>
-                        </datalist>
-                    </div>
-                    <div class="form-group">
-                        <label for="note">Notiz:</label>
-                        <textarea id="note" name="note"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="search_term_mail" class="required">E-Mail Suchwort:</label>
-                        <input type="text" id="search_term_mail" name="search_term_mail" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="search_term_subject" class="required">Betreff Suchwort:</label>
-                        <input type="text" id="search_term_subject" name="search_term_subject" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="search_term_text" class="required">Text Suchwort 1:</label>
-                        <input type="text" id="search_term_text" name="search_term_text" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="search_term_text2">Text Suchwort 2 (optional):</label>
-                        <input type="text" id="search_term_text2" name="search_term_text2">
-                    </div>
-                    
-                    <div class="form-section-divider">Einstellungen für Mail-Berichte</div>
-                    
-                    <div class="form-group">
-                        <div class="toggle-switch">
-                            <label for="include_in_report">In Mail-Berichten auflisten</label>
-                            <input type="checkbox" id="include_in_report" name="include_in_report" checked>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="ignore_no_status_updates_for_x_hours">Status-Timeout (Stunden):</label>
-                        <input type="number" id="ignore_no_status_updates_for_x_hours" name="ignore_no_status_updates_for_x_hours" min="0" value="24" placeholder="standardmäßig 24 Stunden">
-                        <p class="form-hint">Dieser Wert legt fest, wie lange ein Backup-Job seinen zuletzt bekannten Status behält, bevor er als „kein Status" angezeigt wird. Standardmäßig 24 Stunden.</p>
-                        <p class="form-hint">3 Tage = 72 Stunden</p>
-                        <p class="form-hint">7 Tage = 168 Stunden</p>
-                        <p class="form-hint">31 Tage (maximum) = 744</p>
-                    </div>
-                    
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" onclick="closeModal('addModal')">Abbrechen</button>
-                        <button type="submit" class="btn btn-primary">Backup-Job anlegen</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Modal für Bearbeiten -->
-        <div id="editModal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Backup-Job bearbeiten</h2>
-                    <button type="button" class="close-modal" onclick="closeModal('editModal')">&times;</button>
-                </div>
-                <form method="post">
-                    <input type="hidden" name="action" value="edit">
-                    <input type="hidden" name="id" id="edit_id">
-                    <div class="form-group">
-                        <label for="edit_customer_id" class="required">Kunde:</label>
-                        <select id="edit_customer_id" name="customer_id" required>
-                            <?php foreach ($customers as $id => $name): ?>
-                                <option value="<?= $id ?>"><?= htmlspecialchars($name) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit_name" class="required">Name des Backup-Jobs:</label>
-                        <input type="text" id="edit_name" name="name" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit_backup_type">Backup-Typ:</label>
-                        <input type="text" id="edit_backup_type" name="backup_type" list="edit_backup_type_list">
-                        <datalist id="edit_backup_type_list">
-                            <?php foreach ($backup_types as $type): ?>
-                                <option value="<?= htmlspecialchars($type) ?>">
-                            <?php endforeach; ?>
-                        </datalist>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit_note">Notiz:</label>
-                        <textarea id="edit_note" name="note"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit_search_term_mail" class="required">E-Mail Suchwort:</label>
-                        <input type="text" id="edit_search_term_mail" name="search_term_mail" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit_search_term_subject" class="required">Betreff Suchwort:</label>
-                        <input type="text" id="edit_search_term_subject" name="search_term_subject" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit_search_term_text" class="required">Text Suchwort 1:</label>
-                        <input type="text" id="edit_search_term_text" name="search_term_text" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit_search_term_text2">Text Suchwort 2 (optional):</label>
-                        <input type="text" id="edit_search_term_text2" name="search_term_text2">
-                    </div>
-                    
-                    <div class="form-section-divider">Einstellungen für Mail-Berichte</div>
-                    
-                    <div class="form-group">
-                        <div class="toggle-switch">
-                            <label for="edit_include_in_report">In Mail-Berichten auflisten</label>
-                            <input type="checkbox" id="edit_include_in_report" name="include_in_report">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit_ignore_no_status_updates_for_x_hours">Status-Timeout (Stunden):</label>
-                        <input type="number" id="edit_ignore_no_status_updates_for_x_hours" name="ignore_no_status_updates_for_x_hours" min="0" placeholder="standardmäßig 24 Stunden">
-                        <p class="form-hint">Dieser Wert legt fest, wie lange ein Backup-Job seinen zuletzt bekannten Status behält, bevor er als „kein Status" angezeigt wird. Standardmäßig 24 Stunden.</p>
-                        <p class="form-hint">3 Tage = 72 Stunden</p>
-                        <p class="form-hint">7 Tage = 168 Stunden</p>
-                        <p class="form-hint">31 Tage (maximum) = 744</p>
-                    </div>
-                    
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" onclick="closeModal('editModal')">Abbrechen</button>
-                        <button type="submit" class="btn btn-primary">Änderungen speichern</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        
-        <!-- Modal für Löschen -->
-        <div id="deleteModal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Backup-Job löschen</h2>
-                    <button type="button" class="close-modal" onclick="closeModal('deleteModal')">&times;</button>
-                </div>
-                <p>Sind Sie sicher, dass Sie den Backup-Job "<span id="delete_job_name"></span>" löschen möchten?</p>
-                <p><strong>Achtung:</strong> Beim Löschen des Backup-Jobs werden auch alle zugehörigen Backup-Ergebnisse gelöscht. Die verknüpften Mails bleiben jedoch erhalten.</p>
-                <p>Diese Aktion kann nicht rückgängig gemacht werden.</p>
-                <form method="post">
-                    <input type="hidden" name="action" value="delete">
-                    <input type="hidden" name="id" id="delete_id">
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" onclick="closeModal('deleteModal')">Abbrechen</button>
-                        <button type="submit" class="btn btn-danger">Löschen</button>
-                    </div>
-                </form>
-            </div>
-        </div>
     </div>
 
+    <!-- MODAL: Neuen Backup-Job anlegen -->
+    <div class="modal" id="addModal"><div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header"><h3 class="modal-title"><i class="fas fa-plus text-blue-500"></i> Neuen Backup-Job anlegen</h3><button class="modal-close" onclick="closeModal('addModal')"><i class="fas fa-times"></i></button></div>
+        <form method="post"><input type="hidden" name="action" value="add">
+            <div class="modal-body custom-scroll">
+                <div class="form-section-title">Allgemeine Daten</div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Kunde <span class="required">*</span></label><select name="customer_id" class="form-select" required><option value="">– Bitte wählen –</option><?php foreach ($customers as $id => $name): ?><option value="<?= $id ?>"><?= htmlspecialchars($name) ?></option><?php endforeach; ?></select></div>
+                    <div class="form-group"><label class="form-label">Name <span class="required">*</span></label><input type="text" name="name" class="form-input" required></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Backup-Typ</label><input type="text" name="backup_type" class="form-input" list="bt_list"><datalist id="bt_list"><?php foreach ($backup_types as $t): ?><option value="<?= htmlspecialchars($t) ?>"><?php endforeach; ?></datalist></div>
+                    <div class="form-group"><label class="form-label">Notiz</label><textarea name="note" class="form-textarea" style="min-height: 3rem;"></textarea></div>
+                </div>
+                <hr class="divider">
+                <div class="form-section-title">Suchbegriffe</div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">E-Mail Suchwort <span class="required">*</span></label><input type="text" name="search_term_mail" class="form-input" required></div>
+                    <div class="form-group"><label class="form-label">Betreff Suchwort <span class="required">*</span></label><input type="text" name="search_term_subject" class="form-input" required></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Text Suchwort 1 <span class="required">*</span></label><input type="text" name="search_term_text" class="form-input" required></div>
+                    <div class="form-group"><label class="form-label">Text Suchwort 2</label><input type="text" name="search_term_text2" class="form-input"></div>
+                </div>
+                <hr class="divider">
+                <div class="form-section-title">Mail-Berichte</div>
+                <div class="form-group"><div class="toggle-switch"><label class="form-label" style="margin-bottom:0;">In Mail-Berichten auflisten</label><input type="checkbox" name="include_in_report" checked></div></div>
+                <div class="form-group"><label class="form-label">Status-Timeout (Stunden)</label><input type="number" name="ignore_no_status_updates_for_x_hours" class="form-input" min="0" value="24" placeholder="24"><p class="form-hint">Wie lange ein Job seinen Status behält, bevor er als „kein Status" gilt. (3 Tage = 72h, 7 Tage = 168h, 31 Tage = 744h)</p></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline" onclick="closeModal('addModal')">Abbrechen</button><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Anlegen</button></div>
+        </form>
+    </div></div></div>
+
+    <!-- MODAL: Backup-Job bearbeiten -->
+    <div class="modal" id="editModal"><div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header"><h3 class="modal-title"><i class="fas fa-edit text-blue-500"></i> Backup-Job bearbeiten</h3><button class="modal-close" onclick="closeModal('editModal')"><i class="fas fa-times"></i></button></div>
+        <form method="post"><input type="hidden" name="action" value="edit"><input type="hidden" name="id" id="edit_id">
+            <div class="modal-body custom-scroll">
+                <div class="form-section-title">Allgemeine Daten</div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Kunde <span class="required">*</span></label><select id="edit_customer_id" name="customer_id" class="form-select" required><?php foreach ($customers as $id => $name): ?><option value="<?= $id ?>"><?= htmlspecialchars($name) ?></option><?php endforeach; ?></select></div>
+                    <div class="form-group"><label class="form-label">Name <span class="required">*</span></label><input type="text" id="edit_name" name="name" class="form-input" required></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Backup-Typ</label><input type="text" id="edit_backup_type" name="backup_type" class="form-input" list="ebt_list"><datalist id="ebt_list"><?php foreach ($backup_types as $t): ?><option value="<?= htmlspecialchars($t) ?>"><?php endforeach; ?></datalist></div>
+                    <div class="form-group"><label class="form-label">Notiz</label><textarea id="edit_note" name="note" class="form-textarea" style="min-height: 3rem;"></textarea></div>
+                </div>
+                <hr class="divider">
+                <div class="form-section-title">Suchbegriffe</div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">E-Mail Suchwort <span class="required">*</span></label><input type="text" id="edit_search_term_mail" name="search_term_mail" class="form-input" required></div>
+                    <div class="form-group"><label class="form-label">Betreff Suchwort <span class="required">*</span></label><input type="text" id="edit_search_term_subject" name="search_term_subject" class="form-input" required></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Text Suchwort 1 <span class="required">*</span></label><input type="text" id="edit_search_term_text" name="search_term_text" class="form-input" required></div>
+                    <div class="form-group"><label class="form-label">Text Suchwort 2</label><input type="text" id="edit_search_term_text2" name="search_term_text2" class="form-input"></div>
+                </div>
+                <hr class="divider">
+                <div class="form-section-title">Mail-Berichte</div>
+                <div class="form-group"><div class="toggle-switch"><label class="form-label" style="margin-bottom:0;">In Mail-Berichten auflisten</label><input type="checkbox" id="edit_include_in_report" name="include_in_report"></div></div>
+                <div class="form-group"><label class="form-label">Status-Timeout (Stunden)</label><input type="number" id="edit_ignore_hours" name="ignore_no_status_updates_for_x_hours" class="form-input" min="0" placeholder="24"><p class="form-hint">Wie lange ein Job seinen Status behält, bevor er als „kein Status" gilt.</p></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline" onclick="closeModal('editModal')">Abbrechen</button><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button></div>
+        </form>
+    </div></div></div>
+
+    <script src="../../includes/app.js"></script>
     <script>
-        // Funktion zum Anzeigen des Add-Modals
-        function showAddModal() {
-            document.getElementById('addModal').style.display = 'block';
-        }
-        
-        // Funktion zum Anzeigen des Edit-Modals mit vorausgefüllten Daten
-        function editJob(job) {
-            document.getElementById('edit_id').value = job.id;
-            document.getElementById('edit_customer_id').value = job.customer_id;
-            document.getElementById('edit_name').value = job.name;
-            document.getElementById('edit_backup_type').value = job.backup_type;
-            document.getElementById('edit_note').value = job.note;
-            document.getElementById('edit_search_term_mail').value = job.search_term_mail;
-            document.getElementById('edit_search_term_subject').value = job.search_term_subject;
-            document.getElementById('edit_search_term_text').value = job.search_term_text;
-            document.getElementById('edit_search_term_text2').value = job.search_term_text2 || '';
-            document.getElementById('edit_include_in_report').checked = job.include_in_report == 1;
-            document.getElementById('edit_ignore_no_status_updates_for_x_hours').value = job.ignore_no_status_updates_for_x_hours || '';
-            document.getElementById('editModal').style.display = 'block';
-        }
-        
-        // Funktion zum Anzeigen des Lösch-Bestätigungsdialogs
-        function confirmDelete(id, name) {
-            document.getElementById('delete_id').value = id;
-            document.getElementById('delete_job_name').textContent = name;
-            document.getElementById('deleteModal').style.display = 'block';
-        }
-        
-        // Funktion zum Schließen von Modals
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-        
-        // Schließen von Modals wenn außerhalb geklickt wird
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) {
-                event.target.style.display = 'none';
-            }
-        }
-        
-        // Automatisches Ausblenden von Alert-Meldungen nach 5 Sekunden
-        document.addEventListener('DOMContentLoaded', function() {
-            var alerts = document.querySelectorAll('.alert');
-            alerts.forEach(function(alert) {
-                setTimeout(function() {
-                    alert.style.opacity = '0';
-                    alert.style.transition = 'opacity 1s';
-                    setTimeout(function() {
-                        alert.style.display = 'none';
-                    }, 1000);
-                }, 5000);
-            });
+    <?php if ($jsMsg): ?>document.addEventListener('DOMContentLoaded', () => showNotification('<?= $jsMsg ?>', '<?= $jsMsgType ?>'));<?php endif; ?>
+
+    function editJob(j) {
+        document.getElementById('edit_id').value = j.id;
+        document.getElementById('edit_customer_id').value = j.customer_id;
+        document.getElementById('edit_name').value = j.name;
+        document.getElementById('edit_backup_type').value = j.backup_type || '';
+        document.getElementById('edit_note').value = j.note || '';
+        document.getElementById('edit_search_term_mail').value = j.search_term_mail;
+        document.getElementById('edit_search_term_subject').value = j.search_term_subject;
+        document.getElementById('edit_search_term_text').value = j.search_term_text;
+        document.getElementById('edit_search_term_text2').value = j.search_term_text2 || '';
+        document.getElementById('edit_include_in_report').checked = j.include_in_report == 1;
+        document.getElementById('edit_ignore_hours').value = j.ignore_no_status_updates_for_x_hours || '';
+        openModal('editModal');
+    }
+
+    function confirmDeleteJob(id, name) {
+        showConfirm('Backup-Job "' + name + '" wirklich löschen? Alle zugehörigen Backup-Ergebnisse werden ebenfalls gelöscht. Die verknüpften Mails bleiben erhalten.', () => {
+            const f = document.createElement('form'); f.method = 'post';
+            f.innerHTML = '<input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="' + id + '">';
+            document.body.appendChild(f); f.submit();
         });
+    }
     </script>
 </body>
 </html>
-<?php
-$conn->close();
-?>
+<?php $conn->close(); ?>

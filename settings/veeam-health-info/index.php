@@ -1,47 +1,41 @@
+<?php
+/**
+ * COMING SOON — Platzhalterseite
+ * 
+ * Pfad:    /settings/..../index.php (diverse Unterseiten)
+ * Includes: ../../includes/styles.css, ../../includes/app.js
+ */
+?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Coming Soon</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        .container {
-            text-align: center;
-            color: #fff;
-        }
-        
-        h1 {
-            font-size: 4rem;
-            font-weight: 300;
-            letter-spacing: 0.5rem;
-            text-transform: uppercase;
-            margin-bottom: 1rem;
-        }
-        
-        p {
-            font-size: 1.2rem;
-            color: #a0a0a0;
-        }
-    </style>
+    <title>Coming Soon – Backup-Monitor</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="../../includes/styles.css" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <h1>Coming Soon</h1>
+    <div class="container mx-auto px-4 py-6">
+
+        <header class="page-header">
+            <a href="../" class="back-button"><i class="fas fa-arrow-left"></i></a>
+            <div class="page-header-title">
+                <h1>Coming Soon</h1>
+            </div>
+        </header>
+
+        <div class="content-card">
+            <div class="empty-state" style="padding: 5rem 1rem;">
+                <i class="fas fa-rocket" style="font-size: 3rem;"></i>
+                <p style="font-size: 1rem; margin-top: 1rem;">Diese Seite ist noch in Arbeit.</p>
+                <span>Schau bald wieder vorbei!</span>
+            </div>
+        </div>
+
     </div>
+
+    <script src="../../includes/app.js"></script>
 </body>
 </html>

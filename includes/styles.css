@@ -1,0 +1,1689 @@
+/* ============================================================
+   KUNDEN MANAGER - Zentrale Styles
+   ============================================================
+   Diese Datei ist die Single Source of Truth für das gesamte Design.
+   Sie wird von allen PHP-Seiten eingebunden und sorgt für ein
+   einheitliches Erscheinungsbild.
+   
+   Einbindung in jeder PHP-Seite (im <head>):
+   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+   <script src="https://cdn.tailwindcss.com"></script>
+   <link href="../../includes/styles.css" rel="stylesheet">
+   
+   INHALTSVERZEICHNIS:
+   1.  CSS Custom Properties (Farben, Abstände, Schatten)
+   2.  Base & Reset
+   3.  Scrollbar
+   4.  Transitions & Animations
+   5.  Page Header
+   6.  Buttons (Primary, Secondary, Action, Danger, Inline)
+   7.  Status-Kacheln (Stat Cards mit Filter)
+   8.  Badges / Status-Labels
+   9.  Tabellen (viel Platz + enge Auflistung)
+  10.  Suchleiste
+  11.  Tabs Navigation
+  12.  Modals (alle Varianten)
+  13.  Formulare (Inputs, Selects, Labels, Textareas)
+  14.  Section Headers (mit Icons)
+  15.  Notifications / Toast
+  16.  Bestätigungs-Dialog (Confirm)
+  17.  Loading Spinner
+  18.  App Launcher
+  19.  Notizen & Dokumente (Inline-Widgets)
+  20.  Empty States
+  21.  Tooltips
+  22.  Footer
+  23.  Responsive
+  ============================================================ */
+
+
+/* ============================================================
+   1. CSS CUSTOM PROPERTIES
+   ============================================================ */
+   :root {
+    /* ---- Primärfarben ---- */
+    --color-primary:          #2563eb;
+    --color-primary-hover:    #1d4ed8;
+    --color-primary-light:    #eff6ff;
+    --color-primary-bg:       rgba(37, 99, 235, 0.1);
+
+    /* ---- Sekundärfarben (dunkelgrau) ---- */
+    --color-secondary:        #4b5563;
+    --color-secondary-hover:  #374151;
+    --color-secondary-bg:     rgba(75, 85, 99, 0.1);
+
+    /* ---- Grautöne ---- */
+    --color-gray-50:          #f9fafb;
+    --color-gray-100:         #f3f4f6;
+    --color-gray-200:         #e5e7eb;
+    --color-gray-300:         #d1d5db;
+    --color-gray-400:         #9ca3af;
+    --color-gray-500:         #6b7280;
+    --color-gray-600:         #4b5563;
+    --color-gray-700:         #374151;
+    --color-gray-800:         #1f2937;
+    --color-gray-900:         #111827;
+
+    /* ---- Status-Farben ---- */
+    --color-success:          #16a34a;
+    --color-success-bg:       rgba(34, 197, 94, 0.1);
+    --color-success-light:    #f0fdf4;
+    --color-success-border:   #bbf7d0;
+
+    --color-warning:          #ea580c;
+    --color-warning-bg:       rgba(249, 115, 22, 0.1);
+    --color-warning-light:    #fff7ed;
+
+    --color-danger:           #dc2626;
+    --color-danger-hover:     #b91c1c;
+    --color-danger-bg:        rgba(239, 68, 68, 0.1);
+    --color-danger-light:     #fef2f2;
+    --color-danger-border:    #fecaca;
+
+    --color-purple:           #7c3aed;
+    --color-purple-bg:        rgba(124, 58, 237, 0.1);
+
+    --color-yellow:           #b45309;
+    --color-yellow-bg:        rgba(234, 179, 8, 0.12);
+
+    --color-orange:           #ea580c;
+    --color-orange-bg:        rgba(249, 115, 22, 0.1);
+
+    /* ---- Layout ---- */
+    --max-width:              80rem;
+    --border-radius-sm:       0.25rem;   /* 4px  – Badges, kleine Elemente */
+    --border-radius:          0.75rem;   /* 12px – Cards, Modals, Inputs, Buttons */
+    --border-radius-lg:       0.75rem;   /* Reserved */
+    --border-radius-xl:       1rem;      /* Reserved */
+
+    /* ---- Schatten ---- */
+    --shadow-sm:              0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow:                 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg:              0 4px 12px rgba(0, 0, 0, 0.15);
+    --shadow-xl:              0 8px 25px -5px rgba(0, 0, 0, 0.1);
+
+    /* ---- Z-Index Skala ---- */
+    --z-dropdown:             30;
+    --z-modal-backdrop:       40;
+    --z-modal:                50;
+    --z-modal-stacked:        55;
+    --z-modal-chooser:        60;
+    --z-notification:         70;
+
+    /* ---- Transition ---- */
+    --transition-fast:        0.15s ease-in-out;
+    --transition-normal:      0.2s ease;
+    --transition-slow:        0.3s ease;
+}
+
+
+/* ============================================================
+   2. BASE & RESET
+   ============================================================ */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--color-gray-50);
+    color: var(--color-gray-800);
+}
+
+/* Spacer für den fixierten .app-footer — ein Pseudo-Element ist robust
+   gegen Tailwind-CDN-Overrides, weil Tailwind body-padding überschreiben
+   kann, aber keine Pseudo-Elemente anderer Selektoren. */
+body::after {
+    content: '';
+    display: block;
+    height: 5rem;
+}
+
+
+/* ============================================================
+   3. SCROLLBAR
+   ============================================================ */
+.custom-scroll::-webkit-scrollbar {
+    width: 5px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+    background: var(--color-gray-300);
+    border-radius: var(--border-radius-sm);
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--color-gray-400);
+}
+
+
+/* ============================================================
+   4. TRANSITIONS & ANIMATIONS
+   ============================================================ */
+.transition-all {
+    transition: all var(--transition-fast);
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulseRed {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.5; }
+}
+
+@keyframes notizPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(107, 114, 128, 0.6); }
+    40%  { box-shadow: 0 0 0 6px rgba(107, 114, 128, 0.0); }
+    100% { box-shadow: 0 0 0 0 rgba(107, 114, 128, 0.0); }
+}
+
+
+/* ============================================================
+   5. PAGE HEADER
+   ============================================================
+   <header class="page-header">
+       <a href="../" class="back-button"><i class="fas fa-arrow-left"></i></a>
+       <div class="page-header-title">
+           <h1>Seitenname</h1>
+           <p>23 Einträge</p>
+       </div>
+       <button class="btn btn-secondary"><i class="fas fa-tags mr-2"></i>Kategorien</button>
+       <button class="btn btn-primary"><i class="fas fa-plus mr-2"></i>Hinzufügen</button>
+   </header>
+*/
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 3rem;
+    flex-wrap: wrap;
+}
+
+.page-header-title {
+    margin-right: auto;
+}
+
+.page-header-title h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-gray-800);
+    line-height: 1.3;
+}
+
+.page-header-title p {
+    font-size: 0.875rem;
+    color: var(--color-gray-500);
+    margin-top: 0.125rem;
+}
+
+.back-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-gray-300);
+    color: var(--color-gray-700);
+    transition: all var(--transition-fast);
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.back-button:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background-color: var(--color-primary-light);
+}
+
+
+/* ============================================================
+   6. BUTTONS
+   ============================================================
+   .btn              - Basis
+   .btn-primary      - Blau (Hauptaktion)
+   .btn-secondary    - Dunkelgrau
+   .btn-danger       - Rot (Löschen)
+   .btn-outline      - Nur Border (Abbrechen)
+   .btn-ghost        - Nur Text
+   .btn-sm           - Klein
+   .btn-inline       - Für Tabellen-Aktionen (edit/delete)
+*/
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.5;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--transition-fast);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background-color: var(--color-primary);
+    color: #ffffff;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
+}
+
+.btn-secondary {
+    background-color: var(--color-secondary);
+    color: #ffffff;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-secondary-hover);
+}
+
+.btn-danger {
+    background-color: var(--color-danger);
+    color: #ffffff;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: var(--color-danger-hover);
+}
+
+.btn-outline {
+    background-color: transparent;
+    border-color: var(--color-gray-300);
+    color: var(--color-gray-700);
+}
+
+.btn-outline:hover:not(:disabled) {
+    background-color: var(--color-gray-50);
+}
+
+.btn-ghost {
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    padding: 0.25rem 0.5rem;
+}
+
+.btn-ghost:hover {
+    color: var(--color-primary-hover);
+}
+
+.btn-ghost.text-danger {
+    color: var(--color-danger);
+}
+
+.btn-ghost.text-danger:hover {
+    color: var(--color-danger-hover);
+}
+
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+}
+
+.btn-inline {
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+.btn-inline.edit {
+    color: var(--color-primary);
+}
+
+.btn-inline.edit:hover {
+    color: var(--color-primary-hover);
+}
+
+.btn-inline.delete {
+    color: var(--color-danger);
+}
+
+.btn-inline.delete:hover {
+    color: var(--color-danger-hover);
+}
+
+
+/* ============================================================
+   7. STATUS-KACHELN
+   ============================================================
+   <div class="stat-cards">
+       <div class="stat-card">...</div>                          (Gesamt, nicht klickbar)
+       <div class="stat-card stat-card--success clickable">...</div>  (Aktiv)
+       <div class="stat-card stat-card--warning clickable">...</div>  (Bald ablaufend)
+       <div class="stat-card stat-card--danger clickable">...</div>   (Abgelaufen)
+   </div>
+*/
+.stat-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 3rem;
+}
+
+.stat-card {
+    background: #ffffff;
+    border-radius: var(--border-radius);
+    padding: 1.25rem;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-gray-200);
+    position: relative;
+}
+
+.stat-card.clickable {
+    cursor: pointer;
+    border-color: transparent;
+    transition: all var(--transition-normal);
+}
+
+.stat-card.clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.stat-card .filter-indicator {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.7rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--border-radius-sm);
+    display: none;
+    font-weight: 500;
+}
+
+.stat-card.active-filter .filter-indicator {
+    display: block;
+}
+
+.stat-card.active-filter.stat-card--success {
+    border: 2px solid var(--color-success);
+    background-color: var(--color-success-light);
+}
+.stat-card.active-filter.stat-card--success .filter-indicator {
+    background-color: var(--color-success);
+    color: #ffffff;
+}
+
+.stat-card.active-filter.stat-card--warning {
+    border: 2px solid var(--color-warning);
+    background-color: var(--color-warning-light);
+}
+.stat-card.active-filter.stat-card--warning .filter-indicator {
+    background-color: var(--color-warning);
+    color: #ffffff;
+}
+
+.stat-card.active-filter.stat-card--danger {
+    border: 2px solid var(--color-danger);
+    background-color: var(--color-danger-light);
+}
+.stat-card.active-filter.stat-card--danger .filter-indicator {
+    background-color: var(--color-danger);
+    color: #ffffff;
+}
+
+.stat-card-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.stat-card-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-gray-500);
+}
+
+.stat-card-value {
+    font-size: 1.875rem;
+    font-weight: 700;
+    margin-top: 0.25rem;
+    line-height: 1.2;
+}
+
+.stat-card-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--border-radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+
+/* ============================================================
+   8. BADGES
+   ============================================================
+   <span class="badge badge-primary">EDV</span>
+   <span class="badge badge-success">Aktiv</span>
+*/
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--border-radius-sm);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: center;
+    line-height: 1.4;
+}
+
+.badge-primary   { background-color: var(--color-primary-bg);   color: var(--color-primary); }
+.badge-secondary { background-color: var(--color-secondary-bg); color: var(--color-secondary); }
+.badge-success,
+.badge-green     { background-color: var(--color-success-bg);   color: var(--color-success); }
+.badge-danger,
+.badge-red       { background-color: var(--color-danger-bg);    color: var(--color-danger); }
+.badge-warning,
+.badge-orange    { background-color: var(--color-orange-bg);    color: var(--color-orange); }
+.badge-purple    { background-color: var(--color-purple-bg);    color: var(--color-purple); }
+.badge-yellow    { background-color: var(--color-yellow-bg);    color: var(--color-yellow); }
+.badge-gray      { background-color: var(--color-secondary-bg); color: var(--color-gray-500); }
+
+.pulse-red {
+    animation: pulseRed 2s ease-in-out infinite;
+}
+
+.notiz-highlight {
+    animation: notizPulse 0.6s ease-out 2;
+    border-radius: var(--border-radius-sm);
+}
+
+.badge-counter {
+    background-color: var(--color-primary);
+    color: #ffffff;
+    font-size: 0.75rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    margin-left: 0.5rem;
+}
+
+
+/* ============================================================
+   9. TABELLEN
+   ============================================================
+   <div class="table-container">
+       <table class="data-table">           -- Standard
+       <table class="data-table compact">   -- Enge Auflistung
+*/
+.table-container {
+    background: #ffffff;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-gray-200);
+    box-shadow: var(--shadow-sm);
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    min-width: 640px;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.data-table thead {
+    background-color: var(--color-gray-50);
+}
+
+.data-table thead th {
+    padding: 0.75rem 1.5rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--color-gray-200);
+}
+
+.data-table tbody td {
+    padding: 1rem 1.5rem;
+    white-space: nowrap;
+    color: var(--color-gray-900);
+    border-bottom: 1px solid var(--color-gray-100);
+    transition: background-color 0.1s;
+}
+
+.data-table tbody tr:hover td {
+    background-color: #f0f9ff;
+}
+
+.data-table tbody tr.clickable {
+    cursor: pointer;
+}
+
+.data-table.compact tbody td {
+    padding: 0.75rem 1.5rem;
+}
+
+.table-detail {
+    font-size: 0.75rem;
+    color: var(--color-gray-400);
+}
+
+
+/* ============================================================
+   10. SUCHLEISTE
+   ============================================================
+   <div class="search-bar">
+       <div class="search-bar-inner">
+           <div class="search-input-wrapper">
+               <i class="fas fa-search search-icon"></i>
+               <input type="text" class="search-input" placeholder="Suchen...">
+           </div>
+           <button class="btn btn-primary">+ Hinzufügen</button>
+       </div>
+   </div>
+*/
+
+.search-bar {
+    background: #ffffff;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-gray-200);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.search-bar-inner {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.search-input-wrapper {
+    position: relative;
+    flex: 1;
+}
+
+.search-input-wrapper .search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-gray-400);
+    font-size: 0.875rem;
+    pointer-events: none;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.625rem 1rem 0.625rem 2.5rem;
+    background-color: var(--color-gray-50);
+    border: 1px solid var(--color-gray-200);
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    transition: all var(--transition-fast);
+}
+
+.search-input:focus {
+    background-color: #ffffff;
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-primary);
+    border-color: transparent;
+}
+
+
+/* ============================================================
+   11. TABS
+   ============================================================
+   <div class="tabs-container">
+       <nav class="tabs-nav">
+           <button class="tab-item active"><i class="fas fa-user mr-2"></i>Stammdaten</button>
+           <button class="tab-item"><i class="fas fa-box mr-2"></i>Produkte<span class="badge-counter">3</span></button>
+       </nav>
+   </div>
+*/
+.tabs-container {
+    background: #ffffff;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-gray-200);
+    margin-bottom: 1.5rem;
+}
+
+.tabs-nav {
+    display: flex;
+    gap: 2rem;
+    padding: 0 1.5rem;
+}
+
+.tab-item {
+    padding: 1rem 0.25rem;
+    border-bottom: 2px solid transparent;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-gray-500);
+    cursor: pointer;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+}
+
+.tab-item:hover {
+    color: var(--color-gray-700);
+    border-bottom-color: var(--color-gray-300);
+}
+
+.tab-item.active,
+.tab-active {
+    border-bottom-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+/* Toggle Buttons (Pakete/Addons im Auswahl-Modal) */
+.toggle-btn {
+    padding: 0.5rem 1rem;
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all var(--transition-fast);
+}
+
+.toggle-btn.active {
+    background-color: var(--color-primary);
+    color: #ffffff;
+}
+
+.toggle-btn:not(.active) {
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-700);
+}
+
+.toggle-btn:not(.active):hover {
+    background-color: var(--color-gray-200);
+}
+
+
+/* ============================================================
+   12. MODALS
+   ============================================================
+   
+   Alle Varianten:
+   - modal-dialog                Standard (~672px)
+   - modal-dialog modal-sm       Confirm (~384px)
+   - modal-dialog modal-lg       Komplex (~896px)
+   - modal-dialog modal-xl       Zwei Spalten (~1152px)
+   
+   Header: Grauer Hintergrund, Trennstrich, Icon + Titel + Schließen-X
+   Body: Scrollbar, padding
+   Footer: Buttons rechts (oder spread für links/rechts)
+   
+   Z-Index-Hierarchie:
+   - .modal              z-index: 50  (Standard)
+   - .modal.stacked      z-index: 55  (Confirm über Modal)
+   - .modal.chooser      z-index: 60  (Auswahl über Edit)
+   
+   VARIANTE A — Ohne <form> (JS-basiert, z.B. apiCall):
+   
+   <div class="modal-content">
+       <div class="modal-header">
+           <h3 class="modal-title"><i class="fas fa-edit mr-2"></i>Titel</h3>
+           <button class="modal-close"><i class="fas fa-times"></i></button>
+       </div>
+       <div class="modal-body custom-scroll">...</div>
+       <div class="modal-footer">
+           <button class="btn btn-outline">Abbrechen</button>
+           <button class="btn btn-primary">Speichern</button>
+       </div>
+   </div>
+   
+   VARIANTE B — Mit <form> (klassischer POST-Submit):
+   Das <form> umschließt body + footer. Die CSS-Regel
+   .modal-content > form sorgt automatisch für korrektes
+   Flex-Layout und Scrolling.
+   
+   <div class="modal-content">
+       <div class="modal-header">...</div>
+       <form method="post">
+           <div class="modal-body custom-scroll">...Felder...</div>
+           <div class="modal-footer">
+               <button type="button" class="btn btn-outline">Abbrechen</button>
+               <button type="submit" class="btn btn-primary">Speichern</button>
+           </div>
+       </form>
+   </div>
+*/
+
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: var(--z-modal-backdrop);
+    display: none;
+    pointer-events: none;
+}
+
+.modal-backdrop.active {
+    display: block;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: var(--z-modal);
+    display: none;
+    overflow-y: auto;
+    pointer-events: none;
+}
+
+.modal.active {
+    display: flex; /* Changed from block to flex */
+    align-items: flex-start;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.modal.stacked {
+    z-index: var(--z-modal-stacked);
+}
+
+.modal.chooser {
+    z-index: var(--z-modal-chooser);
+}
+
+/* Eigener dunkler Hintergrund für gestapelte Modals (Confirm, Chooser).
+   Wird direkt auf dem Modal-Element angezeigt, NICHT über den gemeinsamen Backdrop.
+   So dunkelt es den Bereich über einem bereits offenen Modal ab.
+   !important: verhindert, dass Tailwind-Reset es überschreibt. */
+div.modal.stacked.active,
+div.modal.chooser.active {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    pointer-events: auto;
+}
+
+.modal-dialog {
+    display: contents;
+}
+
+.modal-dialog .modal-content,
+.modal .modal-content {
+    width: 100%;
+    max-width: 42rem;
+    max-height: calc(100vh - 4rem); /* Viewport minus padding */
+    background: #ffffff;
+    border-radius: var(--border-radius);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideDown var(--transition-slow);
+    pointer-events: auto;
+}
+
+.modal-dialog.modal-sm .modal-content,
+.modal.active:has(.modal-sm) .modal-content {
+    max-width: 24rem;
+}
+
+.modal-dialog.modal-lg .modal-content,
+.modal.active:has(.modal-lg) .modal-content {
+    max-width: 56rem;
+}
+
+.modal-dialog.modal-xl .modal-content,
+.modal.active:has(.modal-xl) .modal-content {
+    max-width: 72rem;
+}
+
+/* Wenn ein <form> direkt in modal-content liegt (z.B. Edit/Add Modals),
+   muss es sich wie ein Flex-Container verhalten, damit modal-body scrollt
+   und modal-footer unten bleibt. */
+.modal-content > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--color-gray-200);
+    background-color: var(--color-gray-50);
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+    flex-shrink: 0;
+}
+
+.modal-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--color-gray-800);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--color-gray-400);
+    cursor: pointer;
+    font-size: 1.25rem;
+    padding: 0.25rem;
+    transition: color var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.modal-close:hover {
+    color: var(--color-gray-600);
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    /* Wichtig: Ermöglicht Scrollen wenn Content zu groß */
+    max-height: 100%;
+}
+
+.modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1.25rem 1.5rem;
+    border-top: 1px solid var(--color-gray-200);
+    flex-shrink: 0;
+    background-color: #ffffff; /* Sicherstellen dass Footer sichtbar bleibt */
+}
+
+.modal-footer.spread {
+    justify-content: space-between;
+}
+
+/* Kachel in Show-Modals */
+.modal-card {
+    background-color: var(--color-gray-50);
+    border-radius: var(--border-radius);
+    padding: 1.25rem;
+}
+
+.modal-card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-gray-700);
+    border-bottom: 1px solid var(--color-gray-200);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.modal-card-title i {
+    color: var(--color-primary);
+}
+
+/* Key-Value Grid */
+.detail-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.5rem 2rem;
+    font-size: 0.875rem;
+}
+
+.detail-grid .label {
+    color: var(--color-gray-500);
+}
+
+.detail-grid .value {
+    color: var(--color-gray-900);
+    font-weight: 500;
+}
+
+/* Auswahl-Items */
+.chooser-item {
+    padding: 0.75rem;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-gray-200);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.chooser-item:hover {
+    background-color: var(--color-primary-light);
+    border-color: var(--color-primary);
+}
+
+.chooser-selected {
+    padding: 1rem;
+    background-color: var(--color-primary-light);
+    border-radius: var(--border-radius);
+    margin-top: 1rem;
+}
+
+
+/* ============================================================
+   13. FORMULARE
+   ============================================================
+   <div class="form-section-title">Allgemeine Daten</div>
+   <div class="form-row">
+       <div class="form-group">
+           <label class="form-label">Bezeichnung <span class="required">*</span></label>
+           <input type="text" class="form-input">
+       </div>
+       <div class="form-group">
+           <label class="form-label">Kategorie</label>
+           <select class="form-select">...</select>
+       </div>
+   </div>
+*/
+.form-section-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-gray-200);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.form-row.cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-gray-700);
+    margin-bottom: 0.5rem;
+}
+
+.form-label .required {
+    color: var(--color-danger);
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    color: var(--color-gray-900);
+    background-color: #ffffff;
+    transition: all var(--transition-fast);
+}
+
+/* Select: Eigenes Styling für den Dropdown-Pfeil */
+.form-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2.5rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 0.75rem;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-primary);
+    border-color: transparent;
+}
+
+.form-input:disabled {
+    background-color: var(--color-gray-50);
+    color: var(--color-gray-500);
+    cursor: not-allowed;
+}
+
+.form-textarea {
+    resize: vertical;
+    min-height: 5rem;
+}
+
+.form-input.error,
+.form-select.error {
+    border-color: var(--color-danger);
+}
+
+.form-error {
+    font-size: 0.75rem;
+    color: var(--color-danger);
+    margin-top: 0.25rem;
+}
+
+.form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--color-gray-700);
+    cursor: pointer;
+}
+
+.form-file {
+    width: 100%;
+    font-size: 0.875rem;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--border-radius);
+    padding: 0.5rem 0.75rem;
+}
+
+.form-file::file-selector-button {
+    margin-right: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--border-radius-sm);
+    border: none;
+    font-size: 0.875rem;
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+    cursor: pointer;
+}
+
+/* Inklusiv-Leistung Zeile */
+.included-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--color-primary-light);
+    border-radius: var(--border-radius);
+}
+
+/* Linke Seite: Name + optionales Icon-Badge + Kategorie-Badge */
+.included-item .item-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-gray-800);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.included-item .item-label .item-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Icon als kleiner Badge mit grauem Hintergrund */
+.included-item .item-icon-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    background-color: var(--color-secondary-bg);
+    color: var(--color-gray-500);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+
+/* Rechte Seite: Menge á Preis + Entfernen */
+.included-item .item-right {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex-shrink: 0;
+    margin-left: 0.75rem;
+}
+
+.included-item .item-qty {
+    width: 3.5rem;
+    padding: 0.25rem 0.375rem;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--border-radius-sm);
+    text-align: center;
+    font-size: 0.875rem;
+    background-color: #ffffff;
+}
+
+.included-item .item-multiply {
+    color: var(--color-gray-500);
+    font-size: 0.8125rem;
+    flex-shrink: 0;
+}
+
+.included-item .item-price {
+    font-size: 0.8125rem;
+    color: var(--color-gray-500);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.included-item .item-remove {
+    color: var(--color-danger);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    margin-left: 0.375rem;
+    transition: color var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.included-item .item-remove:hover {
+    color: var(--color-danger-hover);
+}
+
+
+/* ============================================================
+   14. SECTION HEADERS
+   ============================================================
+   <div class="section-header">
+       <div class="section-icon bg-blue-100 text-blue-600"><i class="fas fa-user"></i></div>
+       <h2 class="section-title">Titel</h2>
+   </div>
+*/
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.section-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--border-radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    flex-shrink: 0;
+}
+
+.section-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-gray-800);
+}
+
+.stat-mini {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem;
+    background: var(--color-gray-50);
+    border-radius: var(--border-radius-sm);
+}
+
+.stat-mini-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--border-radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+}
+
+
+/* ============================================================
+   15. NOTIFICATIONS / TOAST
+   ============================================================
+   <div id="notifications" class="notification-container"></div>
+*/
+.notification-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: var(--z-notification);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.notification {
+    padding: 0.75rem 1rem;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    animation: slideInRight var(--transition-slow);
+    max-width: 24rem;
+}
+
+.notification-success {
+    background: var(--color-success-light);
+    border: 1px solid var(--color-success-border);
+    color: #166534;
+}
+
+.notification-error {
+    background: var(--color-danger-light);
+    border: 1px solid var(--color-danger-border);
+    color: #991b1b;
+}
+
+.notification-warning {
+    background: var(--color-warning-light);
+    border: 1px solid #fed7aa;
+    color: #9a3412;
+}
+
+.notification-info {
+    background: var(--color-primary-light);
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+}
+
+
+/* ============================================================
+   16. LOADING SPINNER
+   ============================================================
+   Groß (für Modal-Loading):
+   <div class="loading">
+       <img src="../../includes/loading.png" class="loading-spinner" alt="Laden...">
+       <p class="loading-text">Daten werden geladen...</p>
+   </div>
+   
+   Klein (Inline):
+   <img src="../../includes/loading.png" class="spinner" alt="">
+   <img src="../../includes/loading.png" class="spinner spinner-lg" alt="">
+   
+   In einem Button:
+   <button class="btn btn-primary" disabled>
+       <img src="../../includes/loading.png" class="spinner" alt=""> Speichern...
+   </button>
+*/
+.loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.loading-spinner {
+    width: 3rem;
+    height: 3rem;
+    animation: spin 1.2s linear infinite;
+}
+
+.loading-text {
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--color-gray-400);
+}
+
+/* Mini-Spinner (verwendet ebenfalls loading.png) */
+.spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    animation: spin 1.2s linear infinite;
+    vertical-align: middle;
+}
+
+.spinner-lg {
+    width: 2rem;
+    height: 2rem;
+}
+
+
+/* ============================================================
+   17. APP LAUNCHER
+   ============================================================ */
+.app-launcher {
+    background: #ffffff;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--color-gray-200);
+    padding: 1.25rem;
+    width: 28rem;
+}
+
+.app-launcher-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-gray-400);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+    padding: 0 0.25rem;
+}
+
+.app-launcher-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    border-radius: var(--border-radius);
+    transition: background-color var(--transition-fast);
+    text-decoration: none;
+    color: var(--color-gray-700);
+}
+
+.app-launcher-item:hover:not(.disabled) {
+    background-color: var(--color-gray-100);
+}
+
+.app-launcher-item.disabled {
+    color: var(--color-gray-400);
+    cursor: default;
+}
+
+.app-launcher-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--border-radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.app-launcher-name {
+    font-weight: 500;
+}
+
+.app-launcher-badge {
+    margin-left: auto;
+    font-size: 0.75rem;
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-500);
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    white-space: nowrap;
+}
+
+
+/* ============================================================
+   18. NOTIZEN & DOKUMENTE
+   ============================================================ */
+.inline-widget {
+    background: #ffffff;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-gray-200);
+    padding: 1.5rem;
+}
+
+.inline-widget-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.inline-widget-header h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-gray-800);
+}
+
+.document-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--border-radius);
+    transition: background-color var(--transition-fast);
+}
+
+.document-item:hover {
+    background-color: var(--color-gray-50);
+}
+
+.document-item .delete-btn {
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.document-item:hover .delete-btn {
+    opacity: 1;
+}
+
+
+/* ============================================================
+   19. EMPTY STATES
+   ============================================================
+   <div class="empty-state">
+       <i class="fas fa-box-open"></i>
+       <p>Noch keine Einträge</p>
+       <span>Erstelle deinen ersten Eintrag.</span>
+   </div>
+*/
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.empty-state i {
+    font-size: 2.5rem;
+    color: var(--color-gray-300);
+    margin-bottom: 0.75rem;
+    display: block;
+}
+
+.empty-state p {
+    color: var(--color-gray-500);
+    font-size: 0.875rem;
+}
+
+.empty-state span {
+    color: var(--color-gray-400);
+    font-size: 0.8125rem;
+    display: block;
+    margin-top: 0.25rem;
+}
+
+
+/* ============================================================
+   20. TOOLTIPS
+   ============================================================
+   <div class="tooltip-wrapper">
+       <i class="fas fa-info-circle text-gray-400"></i>
+       <div class="tooltip">Erklärungstext</div>
+   </div>
+*/
+.tooltip-wrapper {
+    position: relative;
+    display: inline-flex;
+    cursor: help;
+}
+
+.tooltip {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 1.75rem;
+    width: 24rem;
+    padding: 0.5rem;
+    background-color: var(--color-gray-800);
+    color: #ffffff;
+    font-size: 0.75rem;
+    border-radius: var(--border-radius-sm);
+    box-shadow: var(--shadow);
+    z-index: 10;
+    line-height: 1.5;
+}
+
+.tooltip-wrapper:hover .tooltip {
+    display: block;
+}
+
+
+/* ============================================================
+   21. FOOTER
+   ============================================================ */
+.app-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    background-color: #ffffff;
+    border-top: 1px solid var(--color-gray-200);
+    padding: 1rem 0;
+    z-index: 10;
+    color: var(--color-gray-500);
+    font-size: 0.875rem;
+}
+
+.app-footer a {
+    color: inherit;
+    text-decoration: none;
+}
+
+
+/* ============================================================
+   22. VERTRAGSKARTEN (Detailseite)
+   ============================================================ */
+.contract-card {
+    background: #ffffff;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-gray-200);
+    padding: 1.5rem;
+    transition: all var(--transition-normal);
+}
+
+.contract-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-xl);
+}
+
+
+/* ============================================================
+   23. UTILITY CLASSES
+   ============================================================ */
+.detail-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-gray-500);
+    font-weight: 600;
+    margin-bottom: 1px;
+}
+
+.detail-value {
+    font-size: 0.95rem;
+    color: var(--color-gray-900);
+}
+
+.content-card {
+    background: #ffffff;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-gray-200);
+    padding: 1.5rem;
+}
+
+.content-card--compact.content-card {
+    padding: 1rem !important;
+}
+
+.divider {
+    border: none;
+    border-top: 1px solid var(--color-gray-200);
+    margin: 1rem 0;
+}
+
+
+/* ============================================================
+   24. RESPONSIVE
+   ============================================================ */
+@media (max-width: 1024px) {
+    .stat-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .page-header {
+        margin-bottom: 1.5rem;
+    }
+
+    .tabs-nav {
+        gap: 1rem;
+        overflow-x: auto;
+    }
+
+    .app-launcher {
+        width: calc(100vw - 2rem);
+    }
+    
+    .search-bar-inner {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-cards {
+        grid-template-columns: 1fr;
+    }
+}

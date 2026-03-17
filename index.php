@@ -1,8 +1,16 @@
 <?php
-// Config einbinden
+/**
+ * BACKUP-MONITOR — Dashboard-Seite
+ * 
+ * Pfad:    /index.php (Root-Verzeichnis)
+ * Includes: config.php, includes/styles.css, includes/app.js
+ */
+
+// ==========================================
+// INCLUDES & DB
+// ==========================================
 $config = require_once 'config.php';
 
-// Datenbankverbindung herstellen
 $conn = new mysqli(
     $config['server'],
     $config['user'], 
@@ -10,61 +18,69 @@ $conn = new mysqli(
     $config['database']
 );
 
-// Fehlerbehandlung
 if ($conn->connect_error) {
     die('Verbindungsfehler: ' . $conn->connect_error);
 }
 $conn->set_charset('utf8mb4');
 
-// POST-Handler für Notizen-Updates
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_note') {
-    $response = ['success' => false];
-    if (isset($_POST['id']) && isset($_POST['note'])) {
-        $id = (int)$_POST['id'];
-        $note = $conn->real_escape_string($_POST['note']);
-        $sql = "UPDATE backup_results SET note = '$note' WHERE id = $id";
-        if ($conn->query($sql)) {
-            $response['success'] = true;
-        }
+// ==========================================
+// AJAX HANDLER (POST)
+// ==========================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $action = $_POST['action'] ?? '';
+
+    switch ($action) {
+        case 'update_note':
+            $id = intval($_POST['id'] ?? 0);
+            $note = trim($_POST['note'] ?? '');
+            if ($id <= 0) {
+                echo json_encode(['success' => false, 'message' => 'Ungültige ID']);
+                exit;
+            }
+            $stmt = $conn->prepare("UPDATE backup_results SET note = ? WHERE id = ?");
+            $stmt->bind_param("si", $note, $id);
+            if ($stmt->execute()) {
+                echo json_encode(['success' => true, 'message' => 'Notiz gespeichert']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Fehler beim Speichern']);
+            }
+            exit;
+
+        case 'get_mail_content':
+            $mail_id = intval($_POST['mail_id'] ?? 0);
+            if ($mail_id <= 0) {
+                echo json_encode(['success' => false, 'message' => 'Ungültige Mail-ID']);
+                exit;
+            }
+            $stmt = $conn->prepare("SELECT content, subject, sender_email FROM mails WHERE id = ?");
+            $stmt->bind_param("i", $mail_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($row = $result->fetch_assoc()) {
+                echo json_encode([
+                    'success' => true,
+                    'content' => $row['content'],
+                    'subject' => $row['subject'],
+                    'sender'  => $row['sender_email']
+                ]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Mail nicht gefunden']);
+            }
+            exit;
     }
-    header('Content-Type: application/json');
-    echo json_encode($response);
     exit;
 }
 
-// NEUER POST-Handler für Mail-Inhalt
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_mail_content') {
-    $response = ['success' => false];
-    if (isset($_POST['mail_id'])) {
-        $mail_id = (int)$_POST['mail_id'];
-        $sql = "SELECT content, subject, sender_email FROM mails WHERE id = $mail_id";
-        $result = $conn->query($sql);
-        if ($result && $row = $result->fetch_assoc()) {
-            $response['success'] = true;
-            $response['content'] = $row['content'];
-            $response['subject'] = $row['subject'];
-            $response['sender'] = $row['sender_email'];
-        }
-    }
-    header('Content-Type: application/json');
-    echo json_encode($response);
-    exit;
-}
+// ==========================================
+// DATEN LADEN
+// ==========================================
 
-// NEUE STATISTIKEN AUS status_duration TABELLE
-$stats = [
-    'total_status_messages' => 0,
-    'total_backup_jobs' => 0,
-    'success' => 0, 
-    'warning' => 0, 
-    'error' => 0
-];
-
-// Festlegen der zeitlichen Einschränkung für die Abfrage aus der Datenbank (letzte 30 Tage)
+// Zeitliche Einschränkung (letzte 30 Tage)
 $daysToShow = 30;
 $dateLimit = date('Y-m-d', strtotime("-$daysToShow days"));
 
-// Holen der Gesamtstatistiken
+// Gesamtstatistiken
 $statsQuery = "
     SELECT 
         'total_status_messages' as stat_type, COUNT(*) as value 
@@ -90,9 +106,9 @@ $statsResult = $conn->query($statsQuery);
 $stats = [
     'total_status_messages' => 0,
     'total_backup_jobs' => 0,
-    'status_success' => 0, 
-    'status_warning' => 0, 
-    'status_error' => 0
+    'success' => 0,
+    'warning' => 0,
+    'error' => 0
 ];
 
 while ($row = $statsResult->fetch_assoc()) {
@@ -107,7 +123,10 @@ while ($row = $statsResult->fetch_assoc()) {
     }
 }
 
-// Alle verfügbaren Backup-Typen abrufen für den Filter
+$countGesamt = $stats['success'] + $stats['warning'] + $stats['error'];
+$countOhneStatus = $stats['total_backup_jobs'] - $countGesamt;
+
+// Alle verfügbaren Backup-Typen für den Filter
 $backupTypesQuery = "SELECT DISTINCT backup_type FROM backup_jobs WHERE backup_type IS NOT NULL AND backup_type != '' ORDER BY backup_type";
 $backupTypesResult = $conn->query($backupTypesQuery);
 $backupTypes = [];
@@ -115,7 +134,7 @@ while ($row = $backupTypesResult->fetch_assoc()) {
     $backupTypes[] = $row['backup_type'];
 }
 
-// Daten für das Dashboard abrufen - MIT current_status aus status_duration
+// Dashboard-Daten abrufen
 $query = "
     SELECT 
         c.id AS customer_id,
@@ -162,7 +181,6 @@ if ($result) {
     while ($row = $result->fetch_assoc()) {
         $customerId = $row['customer_id'];
         
-        // Kunde initialisieren
         if (!isset($dashboardData[$customerId])) {
             $dashboardData[$customerId] = [
                 'customer' => [
@@ -179,7 +197,6 @@ if ($result) {
         if ($row['job_id']) {
             $jobId = $row['job_id'];
             
-            // Job initialisieren
             if (!isset($dashboardData[$customerId]['jobs'][$jobId])) {
                 $dashboardData[$customerId]['jobs'][$jobId] = [
                     'job_id' => $row['job_id'],
@@ -190,7 +207,6 @@ if ($result) {
                 ];
             }
 
-            // Backup-Ergebnis hinzufügen
             if ($row['result_id']) {
                 $dashboardData[$customerId]['jobs'][$jobId]['results'][] = [
                     'id' => $row['result_id'],
@@ -208,270 +224,22 @@ if ($result) {
     }
 }
 
-// In Array umwandeln für einfachere Verarbeitung im Frontend
 $dashboardData = array_values($dashboardData);
 ?>
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Backup-Monitor</title>
+    <!-- ===== Zentrale Einbindung ===== -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="includes/styles.css" rel="stylesheet">
+
+    <!-- ===== Seiten-spezifische Styles ===== -->
     <style>
-        :root {
-            --primary-color: #2563eb;
-            --primary-hover: #1d4ed8;
-            --success-color: #059669;
-            --success-light: #d1fae5;
-            --warning-color: #d97706;
-            --warning-light: #fef3c7;
-            --error-color: #dc2626;
-            --error-light: #fee2e2;
-            --background-color: #f3f4f6;
-            --card-background: #ffffff;
-            --border-color: #e5e7eb;
-            --text-color: #1f2937;
-            --text-secondary: #6b7280;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            line-height: 1.5;
-            color: var(--text-color);
-            background-color: var(--background-color);
-            padding: 2rem;
-            padding-bottom: 4rem;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            margin-bottom: 4rem;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-        }
-
-        footer {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        text-align: center;
-        background-color: white;
-        border-top: 1px solid #e5e7eb;
-        padding: 1rem 0;
-        z-index: 100;
-        color: #6b7280;
-        }
-
-        footer .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .footer-link {
-            color: inherit;
-            text-decoration: none;
-        }
-
-        h1 {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--text-color);
-        }
-
-        .settings-btn {
-            background-color: var(--primary-color);
-            color: white !important;
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            text-decoration: none;
-            transition: background-color 0.2s;
-        }
-
-        .settings-btn:hover {
-            background-color: var(--primary-hover);
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: var(--card-background);
-            padding: 1rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        
-        .stat-card .detailed-stats {
-            padding-top: 0.25rem;
-        }
-
-        .stat-label {
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-        }
-
-        .stat-value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin-top: 0.25rem;
-        }
-        
-        /* Neue Styles für die detaillierte Statistik */
-        .detailed-stats {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        
-        .detail-stat {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .stat-row {
-            display: flex;
-            align-items: flex-end;
-            gap: 0.75rem;
-        }
-        
-        .stat-label-inline {
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            padding-bottom: 0.25rem;
-        }
-
-        .stat-value.success { color: var(--success-color); }
-        .stat-value.warning { color: var(--warning-color); }
-        .stat-value.error { color: var(--error-color); }
-
-        /* ===== ANKLICKBARE STATUS-KARTEN ===== */
-        .stat-card.clickable {
-            cursor: pointer;
-            transition: all 0.2s ease;
-            border: 2px solid transparent;
-            position: relative;
-        }
-        
-        .stat-card.clickable:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        }
-        
-        .stat-card.clickable.active-filter {
-            border-width: 2px;
-            border-style: solid;
-        }
-        
-        .stat-card.clickable.active-filter.success-card {
-            border-color: var(--success-color);
-            background-color: var(--success-light);
-        }
-        
-        .stat-card.clickable.active-filter.warning-card {
-            border-color: var(--warning-color);
-            background-color: var(--warning-light);
-        }
-        
-        .stat-card.clickable.active-filter.error-card {
-            border-color: var(--error-color);
-            background-color: var(--error-light);
-        }
-        
-        .stat-card.clickable .filter-indicator {
-            position: absolute;
-            top: 0.5rem;
-            right: 0.5rem;
-            font-size: 0.75rem;
-            padding: 0.125rem 0.375rem;
-            border-radius: 0.25rem;
-            display: none;
-        }
-        
-        .stat-card.clickable.active-filter .filter-indicator {
-            display: block;
-        }
-        
-        .stat-card.clickable.active-filter.success-card .filter-indicator {
-            background-color: var(--success-color);
-            color: white;
-        }
-        
-        .stat-card.clickable.active-filter.warning-card .filter-indicator {
-            background-color: var(--warning-color);
-            color: white;
-        }
-        
-        .stat-card.clickable.active-filter.error-card .filter-indicator {
-            background-color: var(--error-color);
-            color: white;
-        }
-
-        .customer-card {
-            background: var(--card-background);
-            border-radius: 0.5rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .customer-header {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .customer-name {
-            font-size: 1.25rem;
-            font-weight: 600;
-        }
-
-        .customer-number {
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-        }
-
-        .job-container {
-            margin-bottom: 1.5rem;
-        }
-
-        .job-header {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .job-name {
-            font-weight: 500;
-        }
-
-        .job-type {
-            background-color: var(--background-color);
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-        }
-
+        /* Backup-Ergebnis Quadrate (30-Tage-Grid) */
         .results-grid {
             display: flex;
             flex-wrap: wrap;
@@ -481,1154 +249,920 @@ $dashboardData = array_values($dashboardData);
         .result-square {
             width: 2rem;
             height: 2rem;
-            border-radius: 0.25rem;
+            border-radius: var(--border-radius-sm);
             position: relative;
             cursor: pointer;
+            transition: transform var(--transition-fast), box-shadow var(--transition-fast);
         }
+
+        .result-square:hover {
+            transform: scale(1.15);
+            box-shadow: var(--shadow);
+        }
+
+        .result-square.bg-success { background-color: var(--color-success); }
+        .result-square.bg-warning { background-color: var(--color-warning); }
+        .result-square.bg-error   { background-color: var(--color-danger); }
+        .result-square.bg-empty   { background-color: var(--color-gray-200); }
 
         .result-count {
             position: absolute;
             top: -0.5rem;
             right: -0.5rem;
-            background-color: var(--primary-color);
-            color: white;
-            width: 1rem;
-            height: 1rem;
+            background-color: var(--color-primary);
+            color: #ffffff;
+            width: 1.125rem;
+            height: 1.125rem;
             border-radius: 9999px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.75rem;
+            font-size: 0.625rem;
+            font-weight: 600;
         }
 
-        .tooltip {
-            display: none;
-            position: absolute;
-            background: white;
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 1rem;
-            width: 20rem;
-            z-index: 10;
-        }
-
+        /* Hover-Tooltip für Datum über den Quadraten */
         .hover-date {
             position: absolute;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
+            background: var(--color-gray-800);
+            color: #ffffff;
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--border-radius-sm);
+            font-size: 0.75rem;
             pointer-events: none;
             z-index: 1000;
             white-space: nowrap;
             display: none;
         }
 
-        .result-details {
+        /* Klickbarer Tooltip (Ergebnis-Details) */
+        .result-tooltip {
+            display: none;
+            position: absolute;
+            background: #ffffff;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--color-gray-200);
+            padding: 1rem;
+            width: 22rem;
+            z-index: var(--z-dropdown);
+        }
+
+        .result-tooltip .result-details {
             margin-bottom: 1rem;
             padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--color-gray-200);
         }
 
-        .detail-row {
+        .result-tooltip .result-details:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        /* Stat-Card Übersicht: Zwei Werte nebeneinander */
+        .stat-overview-row {
             display: flex;
-            justify-content: space-between;
-            margin-bottom: 0.5rem;
+            align-items: baseline;
+            gap: 0.75rem;
         }
 
-        .detail-label {
-            font-weight: 500;
+        .stat-overview-label {
+            font-size: 0.8125rem;
+            color: var(--color-gray-500);
+            padding-bottom: 0.125rem;
         }
 
-        .note-textarea {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid var(--border-color);
-            border-radius: 0.25rem;
-            margin-bottom: 0.5rem;
-            resize: vertical;
+        /* Job-Container innerhalb der Kundenkarten */
+        .job-container {
+            margin-bottom: 1.25rem;
         }
 
-        .save-note-btn {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 0.25rem 0.75rem;
-            border-radius: 0.25rem;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.2s;
+        .job-container:last-child {
+            margin-bottom: 0;
         }
 
-        .save-note-btn:hover {
-            background-color: var(--primary-hover);
-        }
-
-        .buttons-container {
-            position: relative;
-            margin-top: 0.5rem;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-        }
-
-        .show-mail-btn {
-            background-color: var(--text-secondary);
-            color: white;
-            padding: 0.25rem 0.75rem;
-            border-radius: 0.25rem;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .show-mail-btn:hover {
-            background-color: var(--text-color);
-        }
-
-        .mail-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .mail-modal-content {
-            background-color: white;
-            border-radius: 0.5rem;
-            width: 90%;
-            max-width: 800px;
-            max-height: 90vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .mail-modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .mail-modal-header button {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: var(--text-secondary);
-        }
-
-        .mail-modal-header button:hover {
-            color: var(--text-color);
-        }
-
-        .mail-modal-body {
-            padding: 1rem;
-            overflow-y: auto;
-        }
-
-        .mail-modal-body pre {
-            white-space: pre-wrap;
-            font-family: monospace;
-            font-size: 0.875rem;
-        }
-
-        .mail-modal-info {
-            padding: 0.5rem 1rem;
-            border-bottom: 1px solid var(--border-color);
-            background-color: var(--background-color);
-        }
-
-        .mail-modal-info div {
-            margin: 0.25rem 0;
-        }
-
-        .loading-spinner {
-            text-align: center;
-            padding: 2rem;
-            color: var(--text-secondary);
-        }
-
-        @media (max-width: 768px) {
-            body {
-                padding: 1rem;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .tooltip {
-                width: calc(100vw - 2rem);
-                left: 50% !important;
-                transform: translateX(-50%);
-            }
-        }
-
-        /* ===== SUCHLEISTEN-STYLES ===== */
-        .search-container {
-            margin-bottom: 2rem;
-        }
-        
-        .search-wrapper {
-            display: flex;
-            gap: 1rem;
-            align-items: stretch;
-        }
-        
-        .search-box {
-            display: flex;
-            flex: 1;
-            position: relative;
-            background: var(--card-background);
-            border-radius: 0.5rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
-        
-        #searchInput {
-            flex: 1;
-            padding: 0.75rem 2.5rem 0.75rem 0.75rem;
-            border: 1px solid var(--border-color);
-            border-right: none;
-            border-radius: 0.5rem 0 0 0.5rem;
-            font-size: 1rem;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        
-        #searchInput:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
-        }
-        
-        .clear-search-btn {
-            position: absolute;
-            right: 10.5rem;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            font-size: 1.25rem;
-            color: var(--text-secondary);
-            cursor: pointer;
-            display: none;
-            z-index: 5;
-        }
-        
-        .clear-search-btn:hover {
-            color: var(--text-color);
-        }
-        
-        /* Suchmodus-Toggle */
-        .search-mode-toggle {
-            display: flex;
-            border: 1px solid var(--border-color);
-            border-left: none;
-            border-radius: 0 0.5rem 0.5rem 0;
-            overflow: hidden;
-        }
-        
-        .search-mode-toggle label {
-            display: flex;
-            align-items: center;
-            padding: 0.75rem 1rem;
-            cursor: pointer;
-            background-color: var(--background-color);
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-            font-weight: 500;
-            transition: all 0.2s;
-            border-left: 1px solid var(--border-color);
-        }
-        
-        .search-mode-toggle label:first-of-type {
-            border-left: none;
-        }
-        
-        .search-mode-toggle input[type="radio"] {
+        .job-container.hidden {
             display: none;
         }
-        
-        .search-mode-toggle input[type="radio"]:checked + label {
-            background-color: var(--primary-color);
-            color: white;
+
+        .customer-card.hidden {
+            display: none;
         }
-        
-        .search-mode-toggle input[type="radio"]:not(:checked) + label:hover {
-            background-color: var(--border-color);
-        }
-        
-        /* Backup-Typ Filter */
+
+        /* Backup-Typ Filter Dropdown */
         .filter-container {
             position: relative;
         }
-        
-        .filter-btn {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1rem;
-            background: var(--card-background);
-            border: 1px solid var(--border-color);
-            border-radius: 0.5rem;
-            cursor: pointer;
-            font-size: 0.875rem;
-            color: var(--text-color);
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            transition: all 0.2s;
-            height: 100%;
-            white-space: nowrap;
-        }
-        
-        .filter-btn:hover {
-            background-color: var(--background-color);
-        }
-        
-        .filter-btn.has-filter {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-        
-        .filter-btn svg {
-            width: 1rem;
-            height: 1rem;
-        }
-        
+
         .filter-dropdown {
             position: absolute;
             top: calc(100% + 0.5rem);
             right: 0;
-            background: var(--card-background);
-            border: 1px solid var(--border-color);
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            min-width: 200px;
-            z-index: 100;
+            background: #ffffff;
+            border: 1px solid var(--color-gray-200);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-lg);
+            min-width: 220px;
+            z-index: var(--z-dropdown);
             display: none;
         }
-        
+
         .filter-dropdown.show {
             display: block;
         }
-        
+
         .filter-dropdown-header {
             padding: 0.75rem 1rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--color-gray-200);
             font-weight: 600;
             font-size: 0.875rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        
-        .filter-reset-btn {
-            font-size: 0.75rem;
-            color: var(--primary-color);
-            cursor: pointer;
-            background: none;
-            border: none;
-            padding: 0;
-        }
-        
-        .filter-reset-btn:hover {
-            text-decoration: underline;
-        }
-        
-        .filter-options {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        
+
         .filter-option {
             display: flex;
             align-items: center;
             gap: 0.5rem;
             padding: 0.5rem 1rem;
             cursor: pointer;
-            transition: background-color 0.15s;
+            transition: background-color var(--transition-fast);
         }
-        
+
         .filter-option:hover {
-            background-color: var(--background-color);
+            background-color: var(--color-gray-50);
         }
-        
+
         .filter-option input[type="checkbox"] {
             width: 1rem;
             height: 1rem;
-            accent-color: var(--primary-color);
+            accent-color: var(--color-primary);
         }
-        
+
         .filter-option label {
             cursor: pointer;
             font-size: 0.875rem;
             flex: 1;
         }
-        
-        /* Responsive Anpassungen */
+
+        /* Suchmodus Toggle */
+        .search-mode-toggle {
+            display: flex;
+            overflow: hidden;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--color-gray-200);
+        }
+
+        .search-mode-toggle label {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            background-color: var(--color-gray-50);
+            color: var(--color-gray-500);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all var(--transition-fast);
+            border-left: 1px solid var(--color-gray-200);
+        }
+
+        .search-mode-toggle label:first-of-type {
+            border-left: none;
+        }
+
+        .search-mode-toggle input[type="radio"] {
+            display: none;
+        }
+
+        .search-mode-toggle input[type="radio"]:checked + label {
+            background-color: var(--color-primary);
+            color: #ffffff;
+        }
+
+        .search-mode-toggle input[type="radio"]:not(:checked) + label:hover {
+            background-color: var(--color-gray-200);
+        }
+
+        /* Filter-Button aktiver Zustand */
+        .filter-btn-active {
+            background-color: var(--color-primary) !important;
+            color: #ffffff !important;
+            border-color: var(--color-primary) !important;
+        }
+
+        /* Mail-Modal: pre-Formatierung */
+        #mailModalBody pre {
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 0.875rem;
+        }
+
         @media (max-width: 768px) {
-            .search-wrapper {
-                flex-direction: column;
-            }
-            
-            .search-box {
-                flex-direction: column;
-            }
-            
-            #searchInput {
-                border-radius: 0.5rem 0.5rem 0 0;
-                border-right: 1px solid var(--border-color);
-                border-bottom: none;
-            }
-            
-            .search-mode-toggle {
-                border-radius: 0 0 0.5rem 0.5rem;
-                border-left: 1px solid var(--border-color);
-                border-top: none;
-            }
-            
-            .search-mode-toggle label:first-of-type {
-                border-left: none;
-            }
-            
-            .clear-search-btn {
-                right: 0.75rem;
-            }
-            
-            .filter-dropdown {
-                left: 0;
-                right: 0;
+            .result-tooltip {
+                width: calc(100vw - 2rem);
+                left: 50% !important;
+                transform: translateX(-50%);
             }
         }
-        
-        .no-results {
-            background: var(--card-background);
-            border-radius: 0.5rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
-            text-align: center;
-            color: var(--text-secondary);
-            margin-bottom: 1.5rem;
+
+        /* 5-Spalten Grid responsive */
+        @media (max-width: 1280px) {
+            .stat-cards { grid-template-columns: repeat(3, 1fr) !important; }
         }
-        
-        /* Animation für einblenden/ausblenden der Kunden */
-        .customer-card {
-            transition: opacity 0.2s, transform 0.2s;
+        @media (max-width: 768px) {
+            .stat-cards { grid-template-columns: repeat(2, 1fr) !important; }
         }
-        
-        .customer-card.hidden {
-            display: none;
+        @media (max-width: 480px) {
+            .stat-cards { grid-template-columns: 1fr !important; }
         }
-        
-        /* Animation für einblenden/ausblenden einzelner Jobs */
-        .job-container.hidden {
-            display: none;
+
+        /* Ohne-Status Karte: active-filter Style */
+        .stat-card.clickable.active-filter#card-none {
+            border: 2px solid var(--color-gray-500);
+            background-color: var(--color-gray-100);
+        }
+
+        /* Mail-Inhalt Iframe Sandbox */
+        .mail-iframe {
+            width: 100%;
+            border: none;
+            min-height: 300px;
+            border-radius: var(--border-radius-sm);
+            background: #ffffff;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1>Backup Monitor</h1>
-            <a href="./settings" class="settings-btn">Einstellungen</a>
-        </div>
 
-        <!-- Statistiken -->
-        <div class="stats-grid">
-            <div class="stat-card overview-card">
-                <div class="detailed-stats" style="margin-top: -0.3rem;">
-                    <div class="detail-stat">
-                        <div class="stat-row">
-                            <div class="stat-value" style="margin-top: 0;"><?php echo $stats['total_status_messages']; ?></div>
-                            <div class="stat-label-inline">Statusmeldungen</div>
-                        </div>
+    <div class="container mx-auto px-4 py-6">
+
+        <!-- ============================================================
+             SEITEN-HEADER
+             ============================================================ -->
+        <header class="page-header">
+            <a href="https://manage.phd-it.de" class="back-button" title="Zur Kundenverwaltung">
+                <i class="fas fa-users"></i>
+            </a>
+            <div class="page-header-title">
+                <h1>Backup Monitor</h1>
+                <p><?= $stats['total_status_messages'] ?> Statusmeldungen (<?= $daysToShow ?> Tage)</p>
+            </div>
+            <a href="./settings" class="btn btn-primary">
+                <i class="fas fa-cog"></i> Einstellungen
+            </a>
+        </header>
+
+
+        <!-- ============================================================
+             STATUS-KACHELN
+             ============================================================ -->
+        <div class="stat-cards" style="grid-template-columns: repeat(5, 1fr);">
+            <!-- Backup-Jobs (NICHT klickbar) -->
+            <div class="stat-card">
+                <div class="stat-card-content">
+                    <div>
+                        <p class="stat-card-label">Backup-Jobs</p>
+                        <p class="stat-card-value text-gray-800"><?= $stats['total_backup_jobs'] ?></p>
                     </div>
-                    <div class="detail-stat">
-                        <div class="stat-row">
-                            <div class="stat-value" style="margin-top: 0;"><?php echo $stats['total_backup_jobs']; ?></div>
-                            <div class="stat-label-inline">Backup-Jobs</div>
-                        </div>
+                    <div class="stat-card-icon bg-blue-50">
+                        <i class="fas fa-server text-blue-500"></i>
                     </div>
                 </div>
             </div>
-            
-            <!-- Anklickbare Status-Karten -->
-            <div class="stat-card clickable success-card" data-status-filter="success" title="Klicken um nach erfolgreich zu filtern">
-                <span class="filter-indicator">Aktiv</span>
-                <div class="stat-label">Erfolgreich</div>
-                <div class="stat-value success"><?php echo $stats['success']; ?></div>
+
+            <!-- Erfolgreich (klickbar) -->
+            <div class="stat-card stat-card--success clickable"
+                 onclick="filterByStatus('success')" id="card-success">
+                <span class="filter-indicator">Filter aktiv</span>
+                <div class="stat-card-content">
+                    <div>
+                        <p class="stat-card-label">Erfolgreich</p>
+                        <p class="stat-card-value text-green-600"><?= $stats['success'] ?></p>
+                    </div>
+                    <div class="stat-card-icon bg-green-50">
+                        <i class="fas fa-check-circle text-green-500"></i>
+                    </div>
+                </div>
             </div>
-            <div class="stat-card clickable warning-card" data-status-filter="warning" title="Klicken um nach Warnungen zu filtern">
-                <span class="filter-indicator">Aktiv</span>
-                <div class="stat-label">Warnungen</div>
-                <div class="stat-value warning"><?php echo $stats['warning']; ?></div>
+
+            <!-- Warnungen (klickbar) -->
+            <div class="stat-card stat-card--warning clickable"
+                 onclick="filterByStatus('warning')" id="card-warning">
+                <span class="filter-indicator">Filter aktiv</span>
+                <div class="stat-card-content">
+                    <div>
+                        <p class="stat-card-label">Warnungen</p>
+                        <p class="stat-card-value text-orange-500"><?= $stats['warning'] ?></p>
+                    </div>
+                    <div class="stat-card-icon bg-orange-50">
+                        <i class="fas fa-exclamation-triangle text-orange-500"></i>
+                    </div>
+                </div>
             </div>
-            <div class="stat-card clickable error-card" data-status-filter="error" title="Klicken um nach Fehlern zu filtern">
-                <span class="filter-indicator">Aktiv</span>
-                <div class="stat-label">Fehler</div>
-                <div class="stat-value error"><?php echo $stats['error']; ?></div>
+
+            <!-- Fehler (klickbar) -->
+            <div class="stat-card stat-card--danger clickable"
+                 onclick="filterByStatus('error')" id="card-error">
+                <span class="filter-indicator">Filter aktiv</span>
+                <div class="stat-card-content">
+                    <div>
+                        <p class="stat-card-label">Fehler</p>
+                        <p class="stat-card-value text-red-600"><?= $stats['error'] ?></p>
+                    </div>
+                    <div class="stat-card-icon bg-red-50">
+                        <i class="fas fa-times-circle text-red-500"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ohne Status (klickbar) -->
+            <div class="stat-card clickable" style="border-color: transparent;"
+                 onclick="filterByStatus('none')" id="card-none">
+                <span class="filter-indicator" style="background-color: var(--color-gray-500); color: #fff;">Filter aktiv</span>
+                <div class="stat-card-content">
+                    <div>
+                        <p class="stat-card-label">Ohne Status</p>
+                        <p class="stat-card-value text-gray-500"><?= $countOhneStatus ?></p>
+                    </div>
+                    <div class="stat-card-icon bg-gray-100">
+                        <i class="fas fa-question-circle text-gray-400"></i>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Suchleiste mit Modus-Umschalter und Filter -->
-        <div class="search-container">
-            <div class="search-wrapper">
-                <!-- Suchfeld mit Mode-Toggle -->
-                <div class="search-box">
-                    <input type="text" id="searchInput" placeholder="Nach Kundenname oder Kundennummer suchen..." autocomplete="off">
-                    <button id="clearSearch" class="clear-search-btn">&times;</button>
-                    
-                    <!-- Suchmodus Toggle -->
-                    <div class="search-mode-toggle">
-                        <input type="radio" name="searchMode" id="modeCustomer" value="customer" checked>
-                        <label for="modeCustomer">Kunden</label>
-                        <input type="radio" name="searchMode" id="modeJobs" value="jobs">
-                        <label for="modeJobs">Jobs</label>
-                    </div>
+
+        <!-- ============================================================
+             SUCHLEISTE MIT FILTER
+             ============================================================ -->
+        <div class="content-card mb-6" style="padding: 1rem;">
+            <div class="search-bar-inner">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="searchInput" class="search-input"
+                           placeholder="Nach Kundenname oder Kundennummer suchen..." autocomplete="off">
                 </div>
-                
+
+                <!-- Suchmodus Toggle -->
+                <div class="search-mode-toggle">
+                    <input type="radio" name="searchMode" id="modeCustomer" value="customer" checked>
+                    <label for="modeCustomer"><i class="fas fa-user mr-1"></i> Kunden</label>
+                    <input type="radio" name="searchMode" id="modeJobs" value="jobs">
+                    <label for="modeJobs"><i class="fas fa-briefcase mr-1"></i> Jobs</label>
+                </div>
+
                 <!-- Backup-Typ Filter -->
                 <div class="filter-container">
-                    <button class="filter-btn" id="filterBtn">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                        </svg>
+                    <button class="btn btn-outline" id="filterBtn">
+                        <i class="fas fa-filter"></i>
                         <span id="filterBtnText">Backup-Typ</span>
                     </button>
                     
                     <div class="filter-dropdown" id="filterDropdown">
                         <div class="filter-dropdown-header">
                             <span>Backup-Typen</span>
-                            <button class="filter-reset-btn" id="filterResetBtn">Zurücksetzen</button>
+                            <button class="btn btn-ghost btn-sm" id="filterResetBtn" style="padding: 0;">Zurücksetzen</button>
                         </div>
-                        <div class="filter-options">
+                        <div class="filter-options custom-scroll" style="max-height: 300px; overflow-y: auto;">
                             <?php foreach ($backupTypes as $type): ?>
                             <div class="filter-option">
-                                <input type="checkbox" id="filter_<?php echo htmlspecialchars($type); ?>" value="<?php echo htmlspecialchars($type); ?>" class="backup-type-filter">
-                                <label for="filter_<?php echo htmlspecialchars($type); ?>"><?php echo htmlspecialchars($type); ?></label>
+                                <input type="checkbox" id="filter_<?= htmlspecialchars($type) ?>"
+                                       value="<?= htmlspecialchars($type) ?>" class="backup-type-filter">
+                                <label for="filter_<?= htmlspecialchars($type) ?>"><?= htmlspecialchars($type) ?></label>
                             </div>
                             <?php endforeach; ?>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Zähler für sichtbare Ergebnisse -->
-            <div id="searchCounter" class="search-counter" style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 0.5rem;"></div>
+
+            <!-- Zähler -->
+            <div id="searchCounter" style="font-size: 0.8125rem; color: var(--color-gray-500); margin-top: 0.5rem;"></div>
         </div>
 
-        <!-- Kundenliste -->
+
+        <!-- ============================================================
+             KUNDENLISTE
+             ============================================================ -->
         <?php foreach ($dashboardData as $customerData): ?>
-            <div class="customer-card" 
-                 data-customer-name="<?php echo htmlspecialchars(strtolower($customerData['customer']['name'])); ?>" 
-                 data-customer-number="<?php echo htmlspecialchars(strtolower($customerData['customer']['number'])); ?>">
-                <div class="customer-header">
-                    <div class="customer-name"><?php echo htmlspecialchars($customerData['customer']['name']); ?></div>
-                    <div class="customer-number">(<?php echo htmlspecialchars($customerData['customer']['number']); ?>)</div>
+            <div class="content-card mb-4 customer-card"
+                 data-customer-name="<?= htmlspecialchars(strtolower($customerData['customer']['name'])) ?>"
+                 data-customer-number="<?= htmlspecialchars(strtolower($customerData['customer']['number'])) ?>">
+
+                <div class="section-header" style="margin-bottom: 1.25rem;">
+                    <h2 class="section-title"><?= htmlspecialchars($customerData['customer']['name']) ?></h2>
+                    <span class="text-sm text-gray-400">(<?= htmlspecialchars($customerData['customer']['number']) ?>)</span>
                 </div>
 
                 <?php foreach ($customerData['jobs'] as $job): ?>
-                    <div class="job-container" 
-                         data-job-name="<?php echo htmlspecialchars(strtolower($job['job_name'])); ?>" 
-                         data-backup-type="<?php echo htmlspecialchars($job['backup_type']); ?>"
-                         data-current-status="<?php echo htmlspecialchars($job['current_status']); ?>">
-                    <div class="job-header">
-                        <div class="job-name"><?php echo htmlspecialchars($job['job_name']); ?></div>
-                        <div class="job-type"><?php echo htmlspecialchars($job['backup_type']); ?></div>
-                    </div>
+                    <div class="job-container"
+                         data-job-name="<?= htmlspecialchars(strtolower($job['job_name'])) ?>"
+                         data-backup-type="<?= htmlspecialchars($job['backup_type']) ?>"
+                         data-current-status="<?= htmlspecialchars($job['current_status']) ?>">
 
-                    <div class="results-grid">
-                        <?php 
-                        // Generiere die letzten 30 Tage
-                        $dates = [];
-                        for ($i = 30; $i >= 0; $i--) {
-                            $dates[] = date('Y-m-d', strtotime("-$i days"));
-                        }
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="font-medium text-gray-700"><?= htmlspecialchars($job['job_name']) ?></span>
+                            <span class="badge badge-primary"><?= htmlspecialchars($job['backup_type']) ?></span>
+                        </div>
 
-                        // Gruppiere Ergebnisse nach Datum
-                        $groupedResults = [];
-                        foreach ($job['results'] as $result) {
-                            $date = $result['date'];
-                            if (!isset($groupedResults[$date])) {
-                                $groupedResults[$date] = [
-                                    'results' => [],
-                                    'status' => $result['status'],
-                                    'time' => $result['time']
-                                ];
+                        <div class="results-grid">
+                            <?php
+                            // Generiere die letzten 30 Tage
+                            $dates = [];
+                            for ($i = 30; $i >= 0; $i--) {
+                                $dates[] = date('Y-m-d', strtotime("-$i days"));
                             }
-                            $groupedResults[$date]['results'][] = $result;
-                            if ($result['time'] > $groupedResults[$date]['time']) {
-                                $groupedResults[$date]['status'] = $result['status'];
-                                $groupedResults[$date]['time'] = $result['time'];
-                            }
-                        }
 
-                        // Zeige (graue) Quadrate für alle Daten
-                        foreach ($dates as $date) {
-                            if (isset($groupedResults[$date])) {
-                                $groupedResult = $groupedResults[$date];
-                                ?>
-                                <div class="result-square" 
-                                    data-date="<?php echo $date; ?>"
-                                    style="background-color: <?php 
-                                        echo $groupedResult['status'] === 'success' ? 'var(--success-color)' : 
-                                            ($groupedResult['status'] === 'warning' ? 'var(--warning-color)' : 
-                                            'var(--error-color)'); 
-                                    ?>"
-                                    onclick="showTooltip(this, <?php echo htmlspecialchars(json_encode($groupedResult['results'])); ?>)">
-                                    <?php if (count($groupedResult['results']) > 1): ?>
-                                        <div class="result-count"><?php echo count($groupedResult['results']); ?></div>
+                            // Gruppiere Ergebnisse nach Datum
+                            $groupedResults = [];
+                            foreach ($job['results'] as $r) {
+                                $date = $r['date'];
+                                if (!isset($groupedResults[$date])) {
+                                    $groupedResults[$date] = [
+                                        'results' => [],
+                                        'status' => $r['status'],
+                                        'time' => $r['time']
+                                    ];
+                                }
+                                $groupedResults[$date]['results'][] = $r;
+                                if ($r['time'] > $groupedResults[$date]['time']) {
+                                    $groupedResults[$date]['status'] = $r['status'];
+                                    $groupedResults[$date]['time'] = $r['time'];
+                                }
+                            }
+
+                            foreach ($dates as $date):
+                                if (isset($groupedResults[$date])):
+                                    $gr = $groupedResults[$date];
+                                    $colorClass = $gr['status'] === 'success' ? 'bg-success' :
+                                                 ($gr['status'] === 'warning' ? 'bg-warning' : 'bg-error');
+                            ?>
+                                <div class="result-square <?= $colorClass ?>"
+                                     data-date="<?= $date ?>"
+                                     onclick="showResultTooltip(this, <?= htmlspecialchars(json_encode($gr['results'])) ?>)">
+                                    <?php if (count($gr['results']) > 1): ?>
+                                        <div class="result-count"><?= count($gr['results']) ?></div>
                                     <?php endif; ?>
                                 </div>
-                            <?php } else { ?>
-                                <div class="result-square" style="background-color: #e5e7eb"></div>
-                            <?php }
-                        } ?>
-                    </div>
+                            <?php else: ?>
+                                <div class="result-square bg-empty" data-date="<?= $date ?>"></div>
+                            <?php endif;
+                            endforeach; ?>
+                        </div>
                     </div>
                 <?php endforeach; ?>
             </div>
         <?php endforeach; ?>
 
-        <!-- Tooltip Template -->
-        <div id="tooltip" class="tooltip"></div>
+    </div><!-- /container -->
+
+
+    <!-- ============================================================
+         TOOLTIP (Ergebnis-Details, positioniert per JS)
+         ============================================================ -->
+    <div id="resultTooltip" class="result-tooltip"></div>
+
+
+    <!-- ============================================================
+         MODAL: Mail-Inhalt anzeigen
+         ============================================================ -->
+    <div class="modal" id="mailModal">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">
+                        <i class="fas fa-envelope text-blue-500"></i>
+                        <span id="mailModalTitleText">Mail-Inhalt</span>
+                    </h3>
+                    <button class="modal-close" onclick="closeModal('mailModal')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body custom-scroll" id="mailModalBody">
+                    <!-- wird per JS befüllt -->
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeModal('mailModal')">Schließen</button>
+                </div>
+            </div>
+        </div>
     </div>
 
+
+    <!-- ============================================================
+         FOOTER
+         ============================================================ -->
+    <footer class="app-footer">
+        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller - 58h Arbeitszeit (Stand 18.03.2026)</a>
+    </footer>
+
+
+    <!-- ============================================================
+         JAVASCRIPT
+         ============================================================ -->
+    <script src="includes/app.js"></script>
     <script>
-        let activeTooltip = null;
-        let isTooltipLocked = false;
-        let activeStatusFilter = null; // Neuer Status-Filter
+    /* ==========================================
+       SEITEN-SPEZIFISCHES JAVASCRIPT
+       ==========================================
+       Nur Logik die NUR auf dieser Seite gebraucht wird.
+       Alles Gemeinsame kommt aus app.js.
+    */
 
-        // Funktion zur Umrechnung von MB in GB mit 2 Nachkommastellen
-        function formatSize(sizeMB) {
-            if (!sizeMB) return '';
-            const sizeGB = sizeMB / 1024;
-            return sizeGB >= 1 
-                ? `${sizeGB.toFixed(2)} GB`
-                : `${parseFloat(sizeMB).toFixed(2)} MB`;
-        }
+    // --- Status-Filter für Stat-Cards ---
+    let activeStatusFilter = '';
 
-        function showTooltip(element, results) {
-            const tooltip = document.getElementById('tooltip');
-            const rect = element.getBoundingClientRect();
-            
-            let tooltipContent = '';
-                        
-            // Füge die Details für jedes Ergebnis hinzu
-            results.forEach((result, index) => {
-                tooltipContent += `
-                    <div class="result-details">
-                        <div class="detail-row">
-                            <span class="detail-label">Datum:</span>
-                            <span>${result.date}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Zeit:</span>
-                            <span>${result.time}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Status:</span>
-                            <span style="color: ${
-                                result.status === 'success' ? 'var(--success-color)' :
-                                result.status === 'warning' ? 'var(--warning-color)' :
-                                'var(--error-color)'
-                            }">
-                                ${result.status === 'success' ? 'Erfolgreich' :
-                                result.status === 'warning' ? 'Warnung' : 'Fehler'}
-                            </span>
-                        </div>
-                        ${result.size_mb ? `
-                            <div class="detail-row">
-                                <span class="detail-label">Größe:</span>
-                                <span>${formatSize(result.size_mb)}</span>
-                            </div>
-                        ` : ''}
-                        ${result.duration_minutes ? `
-                            <div class="detail-row">
-                                <span class="detail-label">Dauer:</span>
-                                <span>${result.duration_minutes} min</span>
-                            </div>
-                        ` : ''}
-                        <div class="buttons-container">
-                            <textarea
-                                class="note-textarea"
-                                placeholder="Notiz..."
-                                data-result-id="${result.id}"
-                                onkeydown="handleNoteKeydown(event, this)"
-                                onchange="saveNote(${result.id}, this.value)"
-                            >${result.note || ''}</textarea>
-                            <div class="action-buttons">
-                                <button class="save-note-btn" onclick="saveNote(${result.id}, this.parentElement.previousElementSibling.value)">
-                                    Speichern
-                                </button>
-                                ${result.mail_id ? `
-                                    <button class="show-mail-btn" onclick="showMailContent(${result.mail_id}, ${result.id})">
-                                        Mail anzeigen
-                                    </button>
-                                ` : ''}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
+    function filterByStatus(status) {
+        activeStatusFilter = (activeStatusFilter === status) ? '' : status;
 
-            tooltip.innerHTML = tooltipContent;
-            tooltip.style.display = 'block';
-
-            // Position des Tooltips berechnen
-            const tooltipWidth = tooltip.offsetWidth;
-            const viewportWidth = window.innerWidth;
-            
-            let left = rect.left + window.scrollX;
-            if (left + tooltipWidth > viewportWidth - 20) {
-                left = viewportWidth - tooltipWidth - 20;
-            }
-
-            tooltip.style.top = `${rect.bottom + window.scrollY + 10}px`;
-            tooltip.style.left = `${left}px`;
-
-            // Aktiven Tooltip speichern
-            activeTooltip = tooltip;
-            isTooltipLocked = true;
-        }
-
-        async function showMailContent(mailId, resultId) {
-            // Erstelle Lade-Modal
-            const loadingModal = document.createElement('div');
-            loadingModal.className = 'mail-modal';
-            loadingModal.innerHTML = `
-                <div class="mail-modal-content">
-                    <div class="loading-spinner">
-                        <p>Lade Mail-Inhalt...</p>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(loadingModal);
-
-            try {
-                // Lade Mail-Inhalt per AJAX
-                const formData = new FormData();
-                formData.append('action', 'get_mail_content');
-                formData.append('mail_id', mailId);
-
-                const response = await fetch('', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-                
-                if (!result.success) {
-                    throw new Error('Fehler beim Laden des Mail-Inhalts');
-                }
-
-                // Entferne Lade-Modal
-                loadingModal.remove();
-
-                // Erstelle Mail-Modal mit Inhalt
-                const mailModal = document.createElement('div');
-                mailModal.className = 'mail-modal';
-                
-                // Prüfen ob der Content HTML enthält
-                const containsHTML = /<[a-z][\s\S]*>/i.test(result.content);
-                
-                // Content entsprechend aufbereiten
-                const processedContent = containsHTML ? 
-                    result.content : 
-                    result.content
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/"/g, '&quot;')
-                        .replace(/'/g, '&#039;');
-                
-                mailModal.innerHTML = `
-                    <div class="mail-modal-content">
-                        <div class="mail-modal-header">
-                            <h3>Mail Inhalt (ResultID: ${resultId})</h3>
-                            <button onclick="this.closest('.mail-modal').remove()">&times;</button>
-                        </div>
-                        <div class="mail-modal-info">
-                            <div><strong>Betreff:</strong> ${result.subject || 'Kein Betreff'}</div>
-                            <div><strong>Absender:</strong> ${result.sender || 'Keine Absenderadresse'}</div>
-                        </div>
-                        <div class="mail-modal-body">
-                            ${containsHTML ? 
-                                `<div class="html-content">${processedContent}</div>` : 
-                                `<pre>${processedContent}</pre>`
-                            }
-                        </div>
-                    </div>
-                `;
-                
-                document.body.appendChild(mailModal);
-                
-                mailModal.addEventListener('click', (e) => {
-                    if (e.target === mailModal) {
-                        mailModal.remove();
-                    }
-                });
-
-            } catch (error) {
-                console.error('Error loading mail content:', error);
-                loadingModal.remove();
-                alert('Fehler beim Laden des Mail-Inhalts');
-            }
-        }
-
-        // Neue Funktion für Tastatur-Events
-        function handleNoteKeydown(event, textarea) {
-            // Wenn ENTER gedrückt wird und nicht gleichzeitig SHIFT
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault(); // Verhindert den Zeilenumbruch
-                saveNote(textarea.dataset.resultId, textarea.value);
-            }
-        }
-
-        // Tooltip schließen wenn außerhalb geklickt wird
-        document.addEventListener('click', (event) => {
-            if (activeTooltip && !isTooltipLocked) {
-                const tooltipElement = document.getElementById('tooltip');
-                if (!tooltipElement.contains(event.target) && 
-                    !event.target.classList.contains('result-square')) {
-                    tooltipElement.style.display = 'none';
-                    activeTooltip = null;
-                }
-            }
-            isTooltipLocked = false;
+        document.querySelectorAll('.stat-card.clickable').forEach(card => {
+            card.classList.remove('active-filter');
         });
 
-        async function saveNote(resultId, note) {
-            const textarea = document.querySelector(`textarea[data-result-id="${resultId}"]`);
-            const saveButton = textarea.nextElementSibling.querySelector('.save-note-btn');
-            const originalButtonText = saveButton.textContent;
-            
-            try {
-                saveButton.textContent = 'Speichere...';
-                saveButton.disabled = true;
-                
-                const formData = new FormData();
-                formData.append('action', 'update_note');
-                formData.append('id', resultId);
-                formData.append('note', note);
-
-                const response = await fetch('', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-                if (!result.success) {
-                    throw new Error('Fehler beim Speichern der Notiz');
-                }
-
-                // Visuelle Bestätigung
-                saveButton.textContent = '✓ Gespeichert';
-                setTimeout(() => {
-                    saveButton.textContent = originalButtonText;
-                    saveButton.disabled = false;
-                }, 2000);
-                
-            } catch (error) {
-                console.error('Error saving note:', error);
-                alert('Fehler beim Speichern der Notiz');
-                saveButton.textContent = originalButtonText;
-                saveButton.disabled = false;
-            }
+        if (activeStatusFilter) {
+            const activeCard = document.getElementById('card-' + activeStatusFilter);
+            if (activeCard) activeCard.classList.add('active-filter');
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            const searchInput = document.getElementById('searchInput');
-            const clearButton = document.getElementById('clearSearch');
-            const customerCards = document.querySelectorAll('.customer-card');
-            const searchCounter = document.getElementById('searchCounter');
-            const filterBtn = document.getElementById('filterBtn');
-            const filterDropdown = document.getElementById('filterDropdown');
-            const filterResetBtn = document.getElementById('filterResetBtn');
-            const filterBtnText = document.getElementById('filterBtnText');
-            const backupTypeFilters = document.querySelectorAll('.backup-type-filter');
-            const modeCustomer = document.getElementById('modeCustomer');
-            const modeJobs = document.getElementById('modeJobs');
-            const statusCards = document.querySelectorAll('.stat-card.clickable');
+        // filterAndSearch lebt im DOMContentLoaded-Scope, daher über window aufrufen
+        if (typeof window.filterAndSearch === 'function') {
+            window.filterAndSearch();
+        }
+    }
 
-            // Prefill search from URL query parameter "?search=..."
-            const params = new URLSearchParams(window.location.search);
-            const prefill = params.get('search');
-            if (prefill) {
-                searchInput.value = prefill;
+
+    // --- Ergebnis-Tooltip ---
+    let tooltipLocked = false;
+
+    function formatSize(sizeMB) {
+        if (!sizeMB) return '';
+        const sizeGB = sizeMB / 1024;
+        return sizeGB >= 1
+            ? sizeGB.toFixed(2) + ' GB'
+            : parseFloat(sizeMB).toFixed(2) + ' MB';
+    }
+
+    function showResultTooltip(element, results) {
+        const tooltip = document.getElementById('resultTooltip');
+        const rect = element.getBoundingClientRect();
+
+        const statusMap = {
+            success: { label: 'Erfolgreich', badge: 'badge-success' },
+            warning: { label: 'Warnung',     badge: 'badge-warning' },
+            error:   { label: 'Fehler',      badge: 'badge-danger' }
+        };
+
+        let html = '';
+        results.forEach(r => {
+            const st = statusMap[r.status] || { label: r.status, badge: 'badge-gray' };
+            html += `
+                <div class="result-details">
+                    <div class="detail-grid" style="margin-bottom: 0.75rem;">
+                        <span class="label">Datum:</span>
+                        <span class="value">${escHtml(r.date)}</span>
+                        <span class="label">Zeit:</span>
+                        <span class="value">${escHtml(r.time)}</span>
+                        <span class="label">Status:</span>
+                        <span class="value"><span class="badge ${st.badge}">${st.label}</span></span>
+                        ${r.size_mb ? `
+                            <span class="label">Größe:</span>
+                            <span class="value">${formatSize(r.size_mb)}</span>
+                        ` : ''}
+                        ${r.duration_minutes ? `
+                            <span class="label">Dauer:</span>
+                            <span class="value">${r.duration_minutes} min</span>
+                        ` : ''}
+                    </div>
+                    <div class="space-y-2">
+                        <textarea class="form-textarea" style="min-height: 3rem; font-size: 0.8125rem;"
+                                  placeholder="Notiz..."
+                                  data-result-id="${r.id}"
+                                  onkeydown="handleNoteKeydown(event, this)">${escHtml(r.note || '')}</textarea>
+                        <div class="flex gap-2">
+                            <button class="btn btn-primary btn-sm"
+                                    onclick="saveResultNote(${r.id}, this.parentElement.previousElementSibling.value)">
+                                <i class="fas fa-save"></i> Speichern
+                            </button>
+                            ${r.mail_id ? `
+                                <button class="btn btn-secondary btn-sm"
+                                        onclick="openMailModal(${r.mail_id}, ${r.id})">
+                                    <i class="fas fa-envelope"></i> Mail
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>`;
+        });
+
+        tooltip.innerHTML = html;
+        tooltip.style.display = 'block';
+
+        // Positionierung
+        const tooltipWidth = tooltip.offsetWidth;
+        const viewportWidth = window.innerWidth;
+
+        let left = rect.left + window.scrollX;
+        if (left + tooltipWidth > viewportWidth - 20) {
+            left = viewportWidth - tooltipWidth - 20;
+        }
+
+        tooltip.style.top = (rect.bottom + window.scrollY + 10) + 'px';
+        tooltip.style.left = left + 'px';
+
+        tooltipLocked = true;
+    }
+
+    function handleNoteKeydown(event, textarea) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            saveResultNote(textarea.dataset.resultId, textarea.value);
+        }
+    }
+
+    async function saveResultNote(resultId, note) {
+        const result = await apiCall('update_note', {
+            id: resultId,
+            note: note
+        });
+        // apiCall zeigt automatisch Erfolgs-/Fehlermeldung
+    }
+
+    // Tooltip schließen bei Klick außerhalb
+    document.addEventListener('click', (e) => {
+        const tooltip = document.getElementById('resultTooltip');
+        if (tooltipLocked) {
+            tooltipLocked = false;
+            return;
+        }
+        if (tooltip && !tooltip.contains(e.target) && !e.target.classList.contains('result-square')) {
+            tooltip.style.display = 'none';
+        }
+    });
+
+
+    // --- Mail-Modal ---
+    async function openMailModal(mailId, resultId) {
+        openModal('mailModal');
+        showLoading('mailModalBody', 'Mail wird geladen...');
+        document.getElementById('mailModalTitleText').textContent = 'Mail-Inhalt (Result #' + resultId + ')';
+
+        const result = await apiCall('get_mail_content', { mail_id: mailId });
+
+        if (result.success) {
+            const containsHTML = /<[a-z][\s\S]*>/i.test(result.content);
+
+            let contentHtml;
+            if (containsHTML) {
+                // HTML-Mails in ein Iframe sandboxen, damit deren CSS nicht rausleakt
+                const escaped = result.content
+                    .replace(/&/g, '&amp;')
+                    .replace(/"/g, '&quot;');
+                contentHtml = '<iframe class="mail-iframe" sandbox="allow-same-origin" srcdoc="' + escaped + '" onload="this.style.height = this.contentDocument.body.scrollHeight + 20 + \'px\'"></iframe>';
+            } else {
+                contentHtml = '<pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.875rem;">' + escHtml(result.content) + '</pre>';
             }
 
-            // Placeholder je nach Modus aktualisieren
-            function updatePlaceholder() {
-                if (modeCustomer.checked) {
-                    searchInput.placeholder = 'Nach Kundenname oder Kundennummer suchen...';
+            hideLoading('mailModalBody', `
+                <div class="space-y-4">
+                    <div class="modal-card">
+                        <h4 class="modal-card-title"><i class="fas fa-info-circle"></i> Info</h4>
+                        <div class="detail-grid">
+                            <span class="label">Betreff:</span>
+                            <span class="value">${escHtml(result.subject || 'Kein Betreff')}</span>
+                            <span class="label">Absender:</span>
+                            <span class="value">${escHtml(result.sender || 'Keine Absenderadresse')}</span>
+                        </div>
+                    </div>
+                    <div class="modal-card">
+                        <h4 class="modal-card-title"><i class="fas fa-envelope-open-text"></i> Inhalt</h4>
+                        ${contentHtml}
+                    </div>
+                </div>
+            `);
+        } else {
+            hideLoading('mailModalBody', `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p>Fehler beim Laden des Mail-Inhalts</p>
+                </div>
+            `);
+        }
+    }
+
+
+    // --- Suche & Filter ---
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput    = document.getElementById('searchInput');
+        const customerCards  = document.querySelectorAll('.customer-card');
+        const searchCounter  = document.getElementById('searchCounter');
+        const filterBtn      = document.getElementById('filterBtn');
+        const filterDropdown = document.getElementById('filterDropdown');
+        const filterResetBtn = document.getElementById('filterResetBtn');
+        const filterBtnText  = document.getElementById('filterBtnText');
+        const backupTypeFilters = document.querySelectorAll('.backup-type-filter');
+        const modeCustomer   = document.getElementById('modeCustomer');
+        const modeJobs       = document.getElementById('modeJobs');
+
+        // Prefill from URL
+        const params = new URLSearchParams(window.location.search);
+        const prefill = params.get('search');
+        if (prefill) searchInput.value = prefill;
+
+        function updatePlaceholder() {
+            searchInput.placeholder = modeCustomer.checked
+                ? 'Nach Kundenname oder Kundennummer suchen...'
+                : 'Nach Jobname suchen...';
+        }
+
+        // Suchmodus wechseln
+        modeCustomer.addEventListener('change', () => { updatePlaceholder(); filterAndSearch(); });
+        modeJobs.addEventListener('change', () => { updatePlaceholder(); filterAndSearch(); });
+
+        // Filter-Dropdown
+        filterBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            filterDropdown.classList.toggle('show');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!filterDropdown.contains(e.target) && e.target !== filterBtn) {
+                filterDropdown.classList.remove('show');
+            }
+        });
+
+        filterResetBtn.addEventListener('click', () => {
+            backupTypeFilters.forEach(cb => cb.checked = false);
+            filterBtn.classList.remove('filter-btn-active');
+            filterBtnText.textContent = 'Backup-Typ';
+            filterAndSearch();
+        });
+
+        backupTypeFilters.forEach(cb => {
+            cb.addEventListener('change', () => {
+                const count = document.querySelectorAll('.backup-type-filter:checked').length;
+                if (count > 0) {
+                    filterBtn.classList.add('filter-btn-active');
+                    filterBtnText.textContent = 'Filter (' + count + ')';
                 } else {
-                    searchInput.placeholder = 'Nach Jobname suchen...';
+                    filterBtn.classList.remove('filter-btn-active');
+                    filterBtnText.textContent = 'Backup-Typ';
                 }
-            }
-
-            // ===== STATUS-KARTEN KLICK-HANDLER =====
-            statusCards.forEach(card => {
-                card.addEventListener('click', () => {
-                    const status = card.dataset.statusFilter;
-                    
-                    // Toggle: Wenn bereits aktiv, dann deaktivieren
-                    if (activeStatusFilter === status) {
-                        activeStatusFilter = null;
-                        card.classList.remove('active-filter');
-                    } else {
-                        // Alle anderen deaktivieren
-                        statusCards.forEach(c => c.classList.remove('active-filter'));
-                        // Diesen aktivieren
-                        activeStatusFilter = status;
-                        card.classList.add('active-filter');
-                    }
-                    
-                    filterAndSearch();
-                });
-            });
-
-            // Filter-Dropdown öffnen/schließen
-            filterBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                filterDropdown.classList.toggle('show');
-            });
-
-            // Dropdown schließen wenn außerhalb geklickt
-            document.addEventListener('click', (e) => {
-                if (!filterDropdown.contains(e.target) && e.target !== filterBtn) {
-                    filterDropdown.classList.remove('show');
-                }
-            });
-
-            // Filter zurücksetzen
-            filterResetBtn.addEventListener('click', () => {
-                backupTypeFilters.forEach(cb => cb.checked = false);
-                filterBtn.classList.remove('has-filter');
-                filterBtnText.textContent = 'Backup-Typ';
                 filterAndSearch();
             });
+        });
 
-            // Bei Änderung der Filter-Checkboxen
-            backupTypeFilters.forEach(checkbox => {
-                checkbox.addEventListener('change', () => {
-                    const checkedFilters = document.querySelectorAll('.backup-type-filter:checked');
-                    if (checkedFilters.length > 0) {
-                        filterBtn.classList.add('has-filter');
-                        filterBtnText.textContent = `Filter (${checkedFilters.length})`;
-                    } else {
-                        filterBtn.classList.remove('has-filter');
-                        filterBtnText.textContent = 'Backup-Typ';
-                    }
-                    filterAndSearch();
-                });
+        // Sucheingabe
+        searchInput.addEventListener('input', filterAndSearch);
+
+        // Initialisierung
+        updatePlaceholder();
+        filterAndSearch();
+
+        // Global verfügbar machen für filterByStatus()
+        window.filterAndSearch = filterAndSearch;
+
+        // --- Hauptfunktion: Suche + Filter ---
+        function filterAndSearch() {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            const isCustomerMode = modeCustomer.checked;
+
+            const activeTypeFilters = [];
+            backupTypeFilters.forEach(cb => {
+                if (cb.checked) activeTypeFilters.push(cb.value.toLowerCase());
             });
 
-            // Suchmodus wechseln
-            modeCustomer.addEventListener('change', () => {
-                updatePlaceholder();
-                filterAndSearch();
-            });
-            
-            modeJobs.addEventListener('change', () => {
-                updatePlaceholder();
-                filterAndSearch();
-            });
+            customerCards.forEach(card => {
+                const customerName   = card.dataset.customerName || '';
+                const customerNumber = card.dataset.customerNumber || '';
+                const jobs = card.querySelectorAll('.job-container');
 
-            // Hauptfunktion für Suche und Filter
-            function filterAndSearch() {
-                const searchTerm = searchInput.value.toLowerCase().trim();
-                const isCustomerMode = modeCustomer.checked;
-                
-                // Aktive Backup-Typ-Filter sammeln
-                const activeTypeFilters = [];
-                backupTypeFilters.forEach(cb => {
-                    if (cb.checked) activeTypeFilters.push(cb.value.toLowerCase());
-                });
+                let cardVisible = false;
+                let hasVisibleJobs = false;
 
-                // Clear-Button anzeigen/verstecken
-                clearButton.style.display = searchTerm ? 'block' : 'none';
+                if (isCustomerMode) {
+                    const customerMatches = searchTerm === '' ||
+                        customerName.includes(searchTerm) ||
+                        customerNumber.includes(searchTerm);
 
-                customerCards.forEach(card => {
-                    const customerName = card.dataset.customerName || '';
-                    const customerNumber = card.dataset.customerNumber || '';
-                    const jobs = card.querySelectorAll('.job-container');
-                    
-                    let cardVisible = false;
-                    let hasVisibleJobs = false;
-
-                    if (isCustomerMode) {
-                        // KUNDEN-MODUS: Suche nach Kundenname und Kundennummer
-                        const customerMatches = searchTerm === '' || 
-                            customerName.includes(searchTerm) || 
-                            customerNumber.includes(searchTerm);
-
-                        if (customerMatches) {
-                            // Kunde passt zur Suche -> Jobs nach Filter filtern
-                            jobs.forEach(job => {
-                                const jobType = (job.dataset.backupType || '').toLowerCase();
-                                const jobStatus = (job.dataset.currentStatus || '').toLowerCase();
-                                
-                                const jobMatchesTypeFilter = activeTypeFilters.length === 0 || activeTypeFilters.includes(jobType);
-                                const jobMatchesStatusFilter = !activeStatusFilter || jobStatus === activeStatusFilter;
-                                
-                                if (jobMatchesTypeFilter && jobMatchesStatusFilter) {
-                                    job.classList.remove('hidden');
-                                    hasVisibleJobs = true;
-                                } else {
-                                    job.classList.add('hidden');
-                                }
-                            });
-                            cardVisible = hasVisibleJobs || jobs.length === 0;
-                        } else {
-                            // Kunde passt nicht zur Suche
-                            cardVisible = false;
-                            jobs.forEach(job => job.classList.add('hidden'));
-                        }
-                    } else {
-                        // JOBS-MODUS: Suche nach Jobname
+                    if (customerMatches) {
                         jobs.forEach(job => {
-                            const jobName = (job.dataset.jobName || '').toLowerCase();
-                            const jobType = (job.dataset.backupType || '').toLowerCase();
+                            const jobType   = (job.dataset.backupType || '').toLowerCase();
                             const jobStatus = (job.dataset.currentStatus || '').toLowerCase();
-                            
-                            const jobMatchesSearch = searchTerm === '' || jobName.includes(searchTerm);
-                            const jobMatchesTypeFilter = activeTypeFilters.length === 0 || activeTypeFilters.includes(jobType);
-                            const jobMatchesStatusFilter = !activeStatusFilter || jobStatus === activeStatusFilter;
-                            
-                            if (jobMatchesSearch && jobMatchesTypeFilter && jobMatchesStatusFilter) {
+
+                            const matchType   = activeTypeFilters.length === 0 || activeTypeFilters.includes(jobType);
+                            const matchStatus = !activeStatusFilter || jobStatus === activeStatusFilter;
+
+                            if (matchType && matchStatus) {
                                 job.classList.remove('hidden');
                                 hasVisibleJobs = true;
                             } else {
                                 job.classList.add('hidden');
                             }
                         });
-                        cardVisible = hasVisibleJobs;
-                    }
-
-                    // Kundenkarte anzeigen/verstecken
-                    if (cardVisible) {
-                        card.classList.remove('hidden');
+                        cardVisible = hasVisibleJobs || jobs.length === 0;
                     } else {
-                        card.classList.add('hidden');
+                        jobs.forEach(job => job.classList.add('hidden'));
                     }
-                });
-
-                updateCounter();
-            }
-
-            // Zähler aktualisieren
-            function updateCounter() {
-                const totalCards = customerCards.length;
-                const visibleCards = document.querySelectorAll('.customer-card:not(.hidden)').length;
-                const totalJobs = document.querySelectorAll('.job-container').length;
-                const visibleJobs = document.querySelectorAll('.job-container:not(.hidden)').length;
-                
-                const searchTerm = searchInput.value.trim();
-                const hasActiveTypeFilter = document.querySelectorAll('.backup-type-filter:checked').length > 0;
-                const hasAnyFilter = searchTerm !== '' || hasActiveTypeFilter || activeStatusFilter;
-                
-                if (!hasAnyFilter) {
-                    searchCounter.textContent = '';
                 } else {
-                    let filterInfo = [];
-                    if (searchTerm) filterInfo.push(`Suche: "${searchTerm}"`);
-                    if (activeStatusFilter) {
-                        const statusLabels = { success: 'Erfolgreich', warning: 'Warnungen', error: 'Fehler' };
-                        filterInfo.push(`Status: ${statusLabels[activeStatusFilter]}`);
-                    }
-                    if (hasActiveTypeFilter) {
-                        const count = document.querySelectorAll('.backup-type-filter:checked').length;
-                        filterInfo.push(`${count} Backup-Typ(en)`);
-                    }
-                    
-                    searchCounter.textContent = `${visibleCards} von ${totalCards} Kunden | ${visibleJobs} von ${totalJobs} Jobs | Filter: ${filterInfo.join(', ')}`;
-                }
-                
-                // "Keine Ergebnisse" Anzeige
-                let noResults = document.querySelector('.no-results');
-                
-                if (visibleCards === 0 && hasAnyFilter) {
-                    if (!noResults) {
-                        noResults = document.createElement('div');
-                        noResults.className = 'no-results';
-                        noResults.textContent = 'Keine Ergebnisse gefunden.';
-                        
-                        const firstCustomerCard = document.querySelector('.customer-card');
-                        if (firstCustomerCard) {
-                            firstCustomerCard.parentNode.insertBefore(noResults, firstCustomerCard);
+                    jobs.forEach(job => {
+                        const jobName   = (job.dataset.jobName || '').toLowerCase();
+                        const jobType   = (job.dataset.backupType || '').toLowerCase();
+                        const jobStatus = (job.dataset.currentStatus || '').toLowerCase();
+
+                        const matchSearch = searchTerm === '' || jobName.includes(searchTerm);
+                        const matchType   = activeTypeFilters.length === 0 || activeTypeFilters.includes(jobType);
+                        const matchStatus = !activeStatusFilter || jobStatus === activeStatusFilter;
+
+                        if (matchSearch && matchType && matchStatus) {
+                            job.classList.remove('hidden');
+                            hasVisibleJobs = true;
+                        } else {
+                            job.classList.add('hidden');
                         }
-                    }
-                } else if (noResults) {
-                    noResults.remove();
+                    });
+                    cardVisible = hasVisibleJobs;
                 }
+
+                card.classList.toggle('hidden', !cardVisible);
+            });
+
+            updateCounter();
+        }
+
+        function updateCounter() {
+            const totalCards   = customerCards.length;
+            const visibleCards = document.querySelectorAll('.customer-card:not(.hidden)').length;
+            const totalJobs    = document.querySelectorAll('.job-container').length;
+            const visibleJobs  = document.querySelectorAll('.job-container:not(.hidden)').length;
+
+            const searchTerm        = searchInput.value.trim();
+            const hasActiveTypeFilter = document.querySelectorAll('.backup-type-filter:checked').length > 0;
+            const hasAnyFilter      = searchTerm !== '' || hasActiveTypeFilter || activeStatusFilter;
+
+            if (!hasAnyFilter) {
+                searchCounter.textContent = '';
+            } else {
+                let parts = [];
+                if (searchTerm) parts.push('Suche: "' + searchTerm + '"');
+                if (activeStatusFilter) {
+                    const labels = { success: 'Erfolgreich', warning: 'Warnungen', error: 'Fehler' };
+                    parts.push('Status: ' + (labels[activeStatusFilter] || activeStatusFilter));
+                }
+                if (hasActiveTypeFilter) {
+                    parts.push(document.querySelectorAll('.backup-type-filter:checked').length + ' Backup-Typ(en)');
+                }
+                searchCounter.textContent = visibleCards + ' von ' + totalCards + ' Kunden | ' +
+                    visibleJobs + ' von ' + totalJobs + ' Jobs | Filter: ' + parts.join(', ');
             }
 
-            // Event-Listener für Sucheingabe
-            searchInput.addEventListener('input', filterAndSearch);
-            
-            clearButton.addEventListener('click', function() {
-                searchInput.value = '';
-                filterAndSearch();
-                searchInput.focus();
-            });
-
-            // Initialer Aufruf
-            updatePlaceholder();
-            filterAndSearch();
-
-            // Hover-Tooltip erstellen
-            const hoverTooltip = document.createElement('div');
-            hoverTooltip.className = 'hover-date';
-            document.body.appendChild(hoverTooltip);
-
-            // Event-Listener für alle result-square Elemente
-            document.addEventListener('mouseover', function(e) {
-                if (e.target.classList.contains('result-square')) {
-                    const date = e.target.dataset.date;
-                    if (date) {
-                        const dateObj = new Date(date);
-                        const weekday = dateObj.toLocaleDateString('de-DE', { weekday: 'long' });
-                        const formattedDate = dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                        
-                        hoverTooltip.textContent = `${weekday} - ${formattedDate}`;
-                        hoverTooltip.style.display = 'block';
-                        
-                        // Position berechnen mit Scroll-Offset
-                        const rect = e.target.getBoundingClientRect();
-                        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                        
-                        hoverTooltip.style.left = (rect.left + window.scrollX) + 'px';
-                        hoverTooltip.style.top = (rect.top + scrollTop - 25) + 'px';
-                    }
+            // "Keine Ergebnisse" Anzeige
+            let noResults = document.querySelector('.no-results-state');
+            if (visibleCards === 0 && hasAnyFilter) {
+                if (!noResults) {
+                    noResults = document.createElement('div');
+                    noResults.className = 'empty-state no-results-state';
+                    noResults.innerHTML = '<i class="fas fa-search"></i><p>Keine Ergebnisse gefunden</p><span>Passe deine Suchkriterien oder Filter an.</span>';
+                    const first = document.querySelector('.customer-card');
+                    if (first) first.parentNode.insertBefore(noResults, first);
                 }
-            });
+            } else if (noResults) {
+                noResults.remove();
+            }
+        }
+    });
 
-            document.addEventListener('mouseout', function(e) {
-                if (e.target.classList.contains('result-square')) {
-                    hoverTooltip.style.display = 'none';
-                }
-            });
+
+    // --- Hover-Tooltip (Datum) ---
+    document.addEventListener('DOMContentLoaded', function() {
+        const hoverTooltip = document.createElement('div');
+        hoverTooltip.className = 'hover-date';
+        document.body.appendChild(hoverTooltip);
+
+        document.addEventListener('mouseover', function(e) {
+            if (e.target.classList.contains('result-square') && e.target.dataset.date) {
+                const dateObj = new Date(e.target.dataset.date);
+                const weekday = dateObj.toLocaleDateString('de-DE', { weekday: 'long' });
+                const formatted = dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+                hoverTooltip.textContent = weekday + ' – ' + formatted;
+                hoverTooltip.style.display = 'block';
+
+                const rect = e.target.getBoundingClientRect();
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                hoverTooltip.style.left = (rect.left + window.scrollX) + 'px';
+                hoverTooltip.style.top = (rect.top + scrollTop - 28) + 'px';
+            }
         });
-    </script>
 
-<footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-4 z-10">
-    <div class="container mx-auto text-center">
-        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller - 57h Arbeitszeit (Stand 21.02.2026)</a>
-    </div>
-</footer>
+        document.addEventListener('mouseout', function(e) {
+            if (e.target.classList.contains('result-square')) {
+                hoverTooltip.style.display = 'none';
+            }
+        });
+    });
+    </script>
 
 </body>
 </html>

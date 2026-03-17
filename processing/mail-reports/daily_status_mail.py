@@ -42,15 +42,17 @@ def connect_to_database():
         sys.exit(1)
 
 def get_backup_status_count(conn):
-    """Zählt die Anzahl der Backup-Jobs nach Status"""
+    """Zählt die Anzahl der Backup-Jobs nach Status (nur Jobs mit include_in_report)"""
     cursor = conn.cursor()
     query = """
     SELECT 
-        SUM(CASE WHEN current_status = 'success' THEN 1 ELSE 0 END) AS success_count,
-        SUM(CASE WHEN current_status = 'warning' THEN 1 ELSE 0 END) AS warning_count,
-        SUM(CASE WHEN current_status = 'error' THEN 1 ELSE 0 END) AS error_count,
-        SUM(CASE WHEN current_status = 'none' THEN 1 ELSE 0 END) AS none_count
-    FROM status_duration
+        SUM(CASE WHEN sd.current_status = 'success' THEN 1 ELSE 0 END) AS success_count,
+        SUM(CASE WHEN sd.current_status = 'warning' THEN 1 ELSE 0 END) AS warning_count,
+        SUM(CASE WHEN sd.current_status = 'error' THEN 1 ELSE 0 END) AS error_count,
+        SUM(CASE WHEN sd.current_status = 'none' THEN 1 ELSE 0 END) AS none_count
+    FROM status_duration sd
+    JOIN backup_jobs bj ON sd.backup_job_id = bj.id
+    WHERE bj.include_in_report = TRUE
     """
     cursor.execute(query)
     result = cursor.fetchone()
@@ -104,183 +106,221 @@ def format_date(date_str):
         return str(date_str)
 
 def generate_email_safe_html(status_counts, problematic_backups):
-    """Erstellt ein für E-Mail-Clients optimiertes HTML-Template"""
-    today = datetime.now().strftime('%d.%m.%Y')
+    """Erstellt ein für E-Mail-Clients optimiertes HTML-Template
     
-    # Erstelle das HTML mit Outlook-kompatiblen Tabellen
-    html = f"""
-    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-    <html xmlns="http://www.w3.org/1999/xhtml">
-    <head>
-        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Backup Status Bericht</title>
-    </head>
-    <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #F3F4F6;">
-        <!-- Main Container -->
-        <table border="0" cellpadding="0" cellspacing="0" width="95%" style="margin: 0 auto; padding: 10px;">
-            <tr>
-                <td>
-                    <!-- Header Card -->
-                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FFFFFF; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
-                        <!-- Title Row -->
-                        <tr>
-                            <td style="padding: 20px; border-bottom: 1px solid #E5E7EB;">
-                                <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #111827;">Backup Status Bericht vom {today}</h1>
-                            </td>
-                        </tr>
-                        
-                        <!-- Dashboard Button -->
-                        <tr>
-                            <td style="padding: 0 20px 10px; text-align: right;">
-                                <a href="https://backup.phd-it.de" style="display: inline-block; background-color: #2563EB; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 500; margin-top: 10px;">Zum Backup-Dashboard</a>
-                            </td>
-                        </tr>
-                        
-                        <!-- Summary Stats -->
-                        <tr>
-                            <td style="padding: 20px;">
-                                <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                    <tr>
-                                        <!-- Success Count -->
-                                        <td width="25%" style="padding: 10px;">
-                                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FFFFFF; border-radius: 8px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); padding: 10px;">
-                                                <tr>
-                                                    <td style="font-size: 14px; color: #6B7280; padding-bottom: 4px;">Erfolgreich</td>
-                                                </tr>
-                                                <tr>
-                                                    <td style="font-size: 28px; font-weight: 700; color: #059669;">{status_counts['success']}</td>
-                                                </tr>
-                                            </table>
-                                        </td>
-                                        
-                                        <!-- Warning Count -->
-                                        <td width="25%" style="padding: 10px;">
-                                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FFFFFF; border-radius: 8px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); padding: 10px;">
-                                                <tr>
-                                                    <td style="font-size: 14px; color: #6B7280; padding-bottom: 4px;">Warnungen</td>
-                                                </tr>
-                                                <tr>
-                                                    <td style="font-size: 28px; font-weight: 700; color: #D97706;">{status_counts['warning']}</td>
-                                                </tr>
-                                            </table>
-                                        </td>
-                                        
-                                        <!-- Error Count -->
-                                        <td width="25%" style="padding: 10px;">
-                                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FFFFFF; border-radius: 8px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); padding: 10px;">
-                                                <tr>
-                                                    <td style="font-size: 14px; color: #6B7280; padding-bottom: 4px;">Fehler</td>
-                                                </tr>
-                                                <tr>
-                                                    <td style="font-size: 28px; font-weight: 700; color: #DC2626;">{status_counts['error']}</td>
-                                                </tr>
-                                            </table>
-                                        </td>
-                                        
-                                        <!-- None Count -->
-                                        <td width="25%" style="padding: 10px;">
-                                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FFFFFF; border-radius: 8px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); padding: 10px;">
-                                                <tr>
-                                                    <td style="font-size: 14px; color: #6B7280; padding-bottom: 4px;">Kein Status</td>
-                                                </tr>
-                                                <tr>
-                                                    <td style="font-size: 28px; font-weight: 700; color: #6B7280;">{status_counts['none']}</td>
-                                                </tr>
-                                            </table>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
+    Design System Farben (aus styles.css):
+        --color-primary:       #2563eb
+        --color-success:       #16a34a   / bg: rgba(34,197,94,0.1) → #e8f8ef
+        --color-warning:       #ea580c   / bg: rgba(249,115,22,0.1) → #fef2e8
+        --color-danger:        #dc2626   / bg: rgba(239,68,68,0.1) → #fde9e9
+        --color-gray-50:       #f9fafb
+        --color-gray-100:      #f3f4f6
+        --color-gray-200:      #e5e7eb
+        --color-gray-500:      #6b7280
+        --color-gray-700:      #374151
+        --color-gray-800:      #1f2937
+        --color-gray-900:      #111827
+
+    Outlook Classic Kompatibilität:
+        - Kein border-radius (wird ignoriert)
+        - bgcolor-Attribute zusätzlich zu style
+        - MSO-Conditionals für Button (VML)
+        - Badges als Tabelle statt inline-block span
+        - mso-line-height-rule: exactly
     """
-    
-    # Füge die Tabelle der problematischen Backups hinzu
+    today = datetime.now().strftime('%d.%m.%Y')
+
+    # Stat-Card Helper — erzeugt eine einzelne Outlook-kompatible Stat-Kachel
+    def _stat_card(label, value, value_color):
+        return f'''<td width="25%" valign="top" style="padding: 0 6px;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+        <tr>
+            <td bgcolor="#ffffff" style="background-color: #ffffff; border: 1px solid #e5e7eb; padding: 16px; font-family: Arial, Helvetica, sans-serif;">
+                <p style="margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; mso-line-height-rule: exactly; line-height: 16px;">{label}</p>
+                <p style="margin: 6px 0 0; font-size: 30px; font-weight: 700; color: {value_color}; mso-line-height-rule: exactly; line-height: 36px;">{value}</p>
+            </td>
+        </tr>
+    </table>
+</td>'''
+
+    # Badge Helper — Outlook-kompatibles Badge als Mini-Tabelle
+    def _status_badge(status_text, bg_color, text_color):
+        return f'''<table border="0" cellpadding="0" cellspacing="0" align="center" style="border-collapse: collapse;">
+    <tr>
+        <td bgcolor="{bg_color}" style="background-color: {bg_color}; padding: 4px 8px; font-size: 12px; font-weight: 500; color: {text_color}; font-family: Arial, Helvetica, sans-serif; mso-line-height-rule: exactly; line-height: 16px;">{status_text}</td>
+    </tr>
+</table>'''
+
+    # --- Haupt-HTML ---
+    html = f'''<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--[if gte mso 9]>
+    <xml>
+        <o:OfficeDocumentSettings>
+            <o:AllowPNG/>
+            <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSettings>
+    </xml>
+    <![endif]-->
+    <title>Backup Status Bericht</title>
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td, th, p, a {{ font-family: Arial, Helvetica, sans-serif !important; }}
+        table {{ border-collapse: collapse; }}
+    </style>
+    <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f9fafb; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;" bgcolor="#f9fafb">
+
+<!-- Outer Wrapper -->
+<table border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#f9fafb" style="background-color: #f9fafb;">
+    <tr>
+        <td align="center" style="padding: 24px 12px;">
+
+            <!-- Content Card -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 720px; border-collapse: collapse;" bgcolor="#ffffff">
+
+                <!-- Header -->
+                <tr>
+                    <td bgcolor="#ffffff" style="background-color: #ffffff; padding: 24px; border-bottom: 1px solid #e5e7eb; font-family: Arial, Helvetica, sans-serif;">
+                        <h1 style="margin: 0; font-size: 20px; font-weight: 700; color: #1f2937; mso-line-height-rule: exactly; line-height: 28px;">Backup Status Bericht vom {today}</h1>
+                    </td>
+                </tr>
+
+                <!-- Dashboard Button -->
+                <tr>
+                    <td bgcolor="#ffffff" style="background-color: #ffffff; padding: 16px 24px 8px; text-align: right; font-family: Arial, Helvetica, sans-serif;">
+                        <!--[if mso]>
+                        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="https://backup.phd-it.de" style="height:36px;v-text-anchor:middle;width:190px;" arcsize="17%" fillcolor="#2563eb" stroke="f">
+                            <w:anchorlock/>
+                            <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:14px;font-weight:500;">Zum Backup-Dashboard</center>
+                        </v:roundrect>
+                        <![endif]-->
+                        <!--[if !mso]><!-->
+                        <a href="https://backup.phd-it.de" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 8px 16px; border-radius: 12px; text-decoration: none; font-size: 14px; font-weight: 500; mso-line-height-rule: exactly; line-height: 20px;">Zum Backup-Dashboard</a>
+                        <!--<![endif]-->
+                    </td>
+                </tr>
+
+                <!-- Stat Cards -->
+                <tr>
+                    <td bgcolor="#ffffff" style="background-color: #ffffff; padding: 20px 18px; font-family: Arial, Helvetica, sans-serif;">
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+                            <tr>
+                                {_stat_card("Erfolgreich", status_counts['success'], "#16a34a")}
+                                {_stat_card("Warnungen",   status_counts['warning'], "#ea580c")}
+                                {_stat_card("Fehler",      status_counts['error'],   "#dc2626")}
+                                {_stat_card("Kein Status", status_counts['none'],    "#6b7280")}
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+'''
+
+    # --- Tabelle der problematischen Backups ---
     if problematic_backups:
-        html += """
-                        <!-- Problematic Backups Table -->
-                        <tr>
-                            <td style="padding: 0 10px 20px 10px;">
-                                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 14px;">
-                                    <!-- Table Header -->
-                                    <tr style="background-color: #F9FAFB;">
-                                        <th style="padding: 10px; text-align: left; font-weight: 500; color: #6B7280; border-bottom: 1px solid #E5E7EB; text-transform: uppercase; letter-spacing: 0.05em;">Kunde</th>
-                                        <th style="padding: 10px; text-align: left; font-weight: 500; color: #6B7280; border-bottom: 1px solid #E5E7EB; text-transform: uppercase; letter-spacing: 0.05em;">Backup-Job</th>
-                                        <th style="padding: 10px; text-align: center; font-weight: 500; color: #6B7280; border-bottom: 1px solid #E5E7EB; text-transform: uppercase; letter-spacing: 0.05em;">Status</th>
-                                        <th style="padding: 10px; text-align: center; font-weight: 500; color: #6B7280; border-bottom: 1px solid #E5E7EB; text-transform: uppercase; letter-spacing: 0.05em;">Dauer</th>
-                                        <th style="padding: 10px; text-align: right; font-weight: 500; color: #6B7280; border-bottom: 1px solid #E5E7EB; text-transform: uppercase; letter-spacing: 0.05em;">Zuletzt</th>
-                                    </tr>
-        """
-        
-        # Füge für jeden problematischen Backup eine Zeile hinzu
+        # Header-Zellen-Style (Design System: .data-table thead th)
+        th_style = (
+            "padding: 12px 20px; text-align: left; font-size: 11px; font-weight: 600; "
+            "color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; "
+            "border-bottom: 1px solid #e5e7eb; font-family: Arial, Helvetica, sans-serif; "
+            "mso-line-height-rule: exactly; line-height: 16px;"
+        )
+
+        html += f'''
+                <!-- Problematic Backups Table -->
+                <tr>
+                    <td bgcolor="#ffffff" style="background-color: #ffffff; padding: 0 24px 24px; font-family: Arial, Helvetica, sans-serif;">
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 14px;">
+                            <tr bgcolor="#f9fafb" style="background-color: #f9fafb;">
+                                <th style="{th_style}">Kunde</th>
+                                <th style="{th_style}">Backup-Job</th>
+                                <th style="{th_style} text-align: center;">Status</th>
+                                <th style="{th_style} text-align: center;">Dauer</th>
+                            </tr>
+'''
+
         for i, backup in enumerate(problematic_backups):
-            # Alternating row background
-            bg_color = "#FFFFFF" if i % 2 == 0 else "#F9FAFB"
-            
-            # Status styling anhand des Status
+            bg_color = "#ffffff" if i % 2 == 0 else "#f9fafb"
+
+            # Status-Farben aus dem Design System (badges)
             if backup['current_status'] == 'warning':
-                status_bg = "#FFFBEB"
-                status_color = "#D97706"
+                badge_bg = "#fef2e8"
+                badge_color = "#ea580c"
                 status_text = "Warnung"
             elif backup['current_status'] == 'error':
-                status_bg = "#FEF2F2"
-                status_color = "#DC2626"
+                badge_bg = "#fde9e9"
+                badge_color = "#dc2626"
                 status_text = "Fehler"
             else:  # 'none'
-                status_bg = "#F9FAFB"
-                status_color = "#6B7280"
+                badge_bg = "#f3f4f6"
+                badge_color = "#6b7280"
                 status_text = "Kein Status"
-            
-            last_backup = format_date(backup['last_backup_date'])
-            days_display = "über 30 Tage" if backup['days_in_status'] >= 31 else f"{backup['days_in_status']} Tage"
-            
-            html += f"""
-                                    <!-- Table Row -->
-                                    <tr style="background-color: {bg_color};">
-                                        <td style="padding: 10px; border-bottom: 1px solid #E5E7EB; font-weight: 500; color: #111827;">{backup['customer_name']}</td>
-                                        <td style="padding: 10px; border-bottom: 1px solid #E5E7EB; color: #374151;">{backup['job_name']}</td>
-                                        <td style="padding: 10px; border-bottom: 1px solid #E5E7EB; text-align: center;">
-                                            <span style="display: inline-block; padding: 4px 8px; font-size: 12px; font-weight: 500; border-radius: 4px; background-color: {status_bg}; color: {status_color};">{status_text}</span>
-                                        </td>
-                                        <td style="padding: 10px; border-bottom: 1px solid #E5E7EB; text-align: center; font-weight: 500;">{days_display}</td>
-                                        <td style="padding: 10px; border-bottom: 1px solid #E5E7EB; text-align: right;">{last_backup}</td>
-                                    </tr>
-            """
-        
-        html += """
-                                </table>
-                            </td>
-                        </tr>
-        """
+
+            days_display = (
+                "&uuml;ber 30 Tage" if backup['days_in_status'] >= 31
+                else f"{backup['days_in_status']} Tage"
+            )
+
+            # Zellen-Style (Design System: .data-table tbody td)
+            td_base = (
+                f"padding: 14px 20px; border-bottom: 1px solid #f3f4f6; "
+                f"font-family: Arial, Helvetica, sans-serif; font-size: 14px; "
+                f"mso-line-height-rule: exactly; line-height: 20px;"
+            )
+
+            html += f'''
+                            <tr bgcolor="{bg_color}" style="background-color: {bg_color};">
+                                <td style="{td_base} font-weight: 500; color: #111827;">{backup['customer_name']}</td>
+                                <td style="{td_base} color: #374151;">{backup['job_name']}</td>
+                                <td style="{td_base} text-align: center;">
+                                    {_status_badge(status_text, badge_bg, badge_color)}
+                                </td>
+                                <td style="{td_base} text-align: center; font-weight: 500; color: #111827;">{days_display}</td>
+                            </tr>
+'''
+
+        html += '''
+                        </table>
+                    </td>
+                </tr>
+'''
     else:
-        html += """
-                        <!-- No Problematic Backups Message -->
-                        <tr>
-                            <td style="padding: 20px; text-align: center; color: #6B7280;">
-                                Keine problematischen Backup-Jobs gefunden.
-                            </td>
-                        </tr>
-        """
-    
-    # Schließe die Tabellen und das HTML
-    html += """
-                    </table>
-                    
-                    <!-- Footer -->
-                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 20px;">
-                        <tr>
-                            <td style="text-align: center; padding: 12px; font-size: 12px; color: #6B7280;">
-                                Dieser Bericht wurde automatisch generiert. Bei Fragen wende dich an die phd IT-Systeme GmbH.
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
-    
+        html += '''
+                <!-- No Problematic Backups -->
+                <tr>
+                    <td bgcolor="#ffffff" style="background-color: #ffffff; padding: 24px; text-align: center; color: #6b7280; font-family: Arial, Helvetica, sans-serif; font-size: 14px;">
+                        Keine problematischen Backup-Jobs gefunden.
+                    </td>
+                </tr>
+'''
+
+    # --- Footer + Abschluss ---
+    html += '''
+            </table>
+            <!-- /Content Card -->
+
+            <!-- Footer -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 720px; border-collapse: collapse;">
+                <tr>
+                    <td style="text-align: center; padding: 16px 12px; font-size: 12px; color: #6b7280; font-family: Arial, Helvetica, sans-serif; mso-line-height-rule: exactly; line-height: 18px;">
+                        Dieser Bericht wurde automatisch generiert. Bei Fragen wende dich an die phd IT-Systeme GmbH.
+                    </td>
+                </tr>
+            </table>
+
+        </td>
+    </tr>
+</table>
+<!-- /Outer Wrapper -->
+
+</body>
+</html>
+'''
+
     return html
 
 def send_email(subject, html_content, recipients):
