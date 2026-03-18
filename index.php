@@ -756,7 +756,7 @@ $dashboardData = array_values($dashboardData);
          FOOTER
          ============================================================ -->
     <footer class="app-footer">
-        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller - 59h Arbeitszeit (Stand 18.03.2026)</a>
+        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller - 59h Arbeitszeit (Stand 18.03.2026) (v45)</a>
     </footer>
 
 
