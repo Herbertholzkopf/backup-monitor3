@@ -1,11 +1,9 @@
+#!/usr/bin/env python3
 # Dieses Skript sollte täglich ausgeführt werden!
 # Es speichert in der Datenbank, wie lange ein bestimmter Backup-Status bereits existiert,
-# indem es sich die letzte Aktualisierung (Datum & Status) abruft und diese mit dem aktuellen 
-# Status vergleicht und dann den "days_in_status" passend erhöht.
-# (falls das Skript einen Tag lang nicht ausgeführt worden ist und an diesem Tag ein anderer 
-# Status war, wird der Counter nicht zurückgesetzt!!!)
+# indem es vom aktuellen Zeitpunkt in 24-Stunden-Schritten zurückspringt und prüft,
+# wie viele aufeinanderfolgende Fenster denselben Status hatten.
 
-#!/usr/bin/env python3
 import os
 import sys
 import pymysql
@@ -48,20 +46,24 @@ def get_job_ignore_hours(connection, job_id):
             return result['ignore_no_status_updates_for_x_hours']
         return 24  # Standardwert falls nicht gesetzt
 
-def get_status_for_period(connection, job_id, start_date, end_date):
-    """Den neuesten Backup-Status für einen bestimmten Job und Zeitraum holen"""
+def get_status_in_window(connection, job_id, window_start, window_end):
+    """Den neuesten Backup-Status innerhalb eines exakten Zeitfensters holen.
+    
+    Nutzt TIMESTAMP(date, time) für präzise 24h-Fenster statt Kalendertage.
+    window_start ist exklusiv (>), window_end ist inklusiv (<=).
+    """
     with connection.cursor() as cursor:
         query = """
-        SELECT status, date 
+        SELECT status, date, time
         FROM backup_results
         WHERE backup_job_id = %s
-        AND date BETWEEN %s AND %s
+          AND TIMESTAMP(date, time) > %s
+          AND TIMESTAMP(date, time) <= %s
         ORDER BY date DESC, time DESC
         LIMIT 1
         """
-        cursor.execute(query, (job_id, start_date, end_date))
-        result = cursor.fetchone()
-        return result
+        cursor.execute(query, (job_id, window_start, window_end))
+        return cursor.fetchone()
 
 def update_status_duration(connection, job_id, current_status, days_in_status, last_backup_date=None):
     """Die status_duration Tabelle mit den aktuellen Statusinformationen aktualisieren"""
@@ -76,7 +78,6 @@ def update_status_duration(connection, job_id, current_status, days_in_status, l
         existing_entry = cursor.fetchone()
         
         if existing_entry:
-            # Bestehenden Eintrag aktualisieren
             query = """
             UPDATE status_duration
             SET current_status = %s,
@@ -86,86 +87,75 @@ def update_status_duration(connection, job_id, current_status, days_in_status, l
             WHERE backup_job_id = %s
             """
             cursor.execute(query, (
-                current_status, 
-                days_in_status, 
-                today, 
-                last_backup_date, 
-                job_id
+                current_status, days_in_status, today, last_backup_date, job_id
             ))
         else:
-            # Neuen Eintrag hinzufügen
             query = """
             INSERT INTO status_duration
             (backup_job_id, current_status, days_in_status, last_update, last_backup_date)
             VALUES (%s, %s, %s, %s, %s)
             """
             cursor.execute(query, (
-                job_id, 
-                current_status, 
-                days_in_status, 
-                today, 
-                last_backup_date
+                job_id, current_status, days_in_status, today, last_backup_date
             ))
     
     connection.commit()
 
 def analyze_job_status(connection, job_id):
-    """Die Statushistorie für einen bestimmten Backup-Job analysieren"""
-    today = datetime.date.today()
-    now = datetime.datetime.now()
+    """Die Statushistorie für einen bestimmten Backup-Job analysieren.
     
-    # Individuellen ignore_hours Wert für diesen Job holen
+    Logik:
+    1. Aktuellen Status bestimmen: Im Fenster (jetzt - ignore_hours) bis jetzt suchen.
+       Kein Ergebnis → Status ist 'none'.
+    2. In 24h-Schritten rückwärts zählen, wie viele aufeinanderfolgende Fenster
+       denselben Status hatten.
+    
+    Beispiel (ignore_hours=24, Skript läuft am 18.03. um 08:00):
+      Fenster 0 (aktuell):  17.03. 08:00 → 18.03. 08:00
+      Fenster 1:            16.03. 08:00 → 17.03. 08:00
+      Fenster 2:            15.03. 08:00 → 16.03. 08:00
+      ...
+    """
+    now = datetime.datetime.now()
     ignore_hours = get_job_ignore_hours(connection, job_id)
     
-    # Zeitraum basierend auf ignore_hours berechnen
-    lookback_time = now - datetime.timedelta(hours=ignore_hours)
-    lookback_date = lookback_time.date()
+    # --- Schritt 1: Aktuellen Status bestimmen ---
+    window_end = now
+    window_start = now - datetime.timedelta(hours=ignore_hours)
     
-    # Status im konfigurierten Zeitraum prüfen
-    latest_status = get_status_for_period(connection, job_id, lookback_date, today)
+    latest = get_status_in_window(connection, job_id, window_start, window_end)
     
-    if latest_status is None:
+    if latest is None:
         current_status = 'none'
         last_backup_date = None
     else:
-        current_status = latest_status['status']
-        last_backup_date = latest_status['date']
+        current_status = latest['status']
+        last_backup_date = latest['date']
     
-    # Tage mit dem gleichen Status zählen
-    days_in_status = 1
+    # --- Schritt 2: In 24h-Schritten rückwärts zählen ---
+    days_in_status = 1  # Das aktuelle Fenster zählt bereits als 1
     
-    # Bis zu 30 Tage zurückprüfen
-    for day in range(1, 30):
-        start_date = today - datetime.timedelta(days=day+1)
-        end_date = today - datetime.timedelta(days=day)
+    for step in range(1, 31):
+        step_end   = now - datetime.timedelta(hours=24 * step)
+        step_start = now - datetime.timedelta(hours=24 * (step + 1))
         
-        prev_status = get_status_for_period(connection, job_id, start_date, end_date)
+        prev = get_status_in_window(connection, job_id, step_start, step_end)
         
-        # Logik basierend auf dem aktuellen Status
         if current_status == 'none':
-            # Wenn der aktuelle Status 'none' ist, zählen wir Tage ohne Status
-            if prev_status is None:
+            # Kein aktueller Status → zähle wie viele Fenster ebenfalls leer waren
+            if prev is None:
                 days_in_status += 1
             else:
-                # Ein Tag mit Status gefunden, Kette unterbrochen
                 break
-        elif current_status in ('warning', 'error'):
-            # Für Warnungen oder Fehler zählen wir Tage mit demselben Status
-            if prev_status is not None and prev_status['status'] == current_status:
+        else:
+            # Status vorhanden → zähle wie viele Fenster denselben Status hatten
+            if prev is not None and prev['status'] == current_status:
                 days_in_status += 1
             else:
-                # Anderer Status oder kein Status gefunden, Kette unterbrochen
-                break
-        else:  # 'success'
-            # Für Erfolg zählen wir Tage mit demselben Status
-            if prev_status is not None and prev_status['status'] == current_status:
-                days_in_status += 1
-            else:
-                # Anderer Status oder kein Status gefunden, Kette unterbrochen
                 break
     
-    # Auf 31 Tage begrenzen, wenn der Status länger als 30 Tage gleich ist
-    if days_in_status >= 30:
+    # Auf 31 begrenzen (= "mehr als 30 Tage")
+    if days_in_status > 30:
         days_in_status = 31
     
     # Datenbank aktualisieren
@@ -195,7 +185,8 @@ def main():
                 'none': 'Kein Status'
             }.get(result['status'], result['status'])
             
-            print(f"Job {result['job_id']}: {status_text} seit {result['days']} Tagen (Toleranz: {result['ignore_hours']}h)")
+            print(f"  Job {result['job_id']}: {status_text} seit {result['days']} Tag(en) "
+                  f"(Toleranz: {result['ignore_hours']}h)")
         
         print("Analyse abgeschlossen!")
     finally:

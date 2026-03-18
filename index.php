@@ -10,6 +10,7 @@
 // INCLUDES & DB
 // ==========================================
 $config = require_once 'config.php';
+date_default_timezone_set('Europe/Berlin');
 
 $conn = new mysqli(
     $config['server'],
@@ -755,7 +756,7 @@ $dashboardData = array_values($dashboardData);
          FOOTER
          ============================================================ -->
     <footer class="app-footer">
-        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller - 58h Arbeitszeit (Stand 18.03.2026)</a>
+        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller - 59h Arbeitszeit (Stand 18.03.2026)</a>
     </footer>
 
 
@@ -906,7 +907,7 @@ $dashboardData = array_values($dashboardData);
     async function openMailModal(mailId, resultId) {
         openModal('mailModal');
         showLoading('mailModalBody', 'Mail wird geladen...');
-        document.getElementById('mailModalTitleText').textContent = 'Mail-Inhalt (Result #' + resultId + ')';
+        document.getElementById('mailModalTitleText').textContent = 'Mail-Inhalt (Result #' + resultId + ' | Mail #' + mailId + ')';
 
         const result = await apiCall('get_mail_content', { mail_id: mailId });
 

@@ -5,8 +5,6 @@
 import sys
 import os
 import pymysql
-import re
-from datetime import datetime
 from html.parser import HTMLParser
 
 # Database connection
@@ -146,66 +144,6 @@ def extract_mailstore_status(html_content):
     else:
         return None
 
-def extract_date_from_mail(html_content):
-    """
-    Extrahiert das Datum aus dem MailStore Report
-    Sucht nach dem Datum in den Archivierungsstatistiken
-    Unterstützt deutsche (DD.MM.YYYY), englische (DD.MM.YYYY) und
-    US-Cloud-Formate (M/D/YYYY)
-    """
-    # 1. Deutsches Format: Datum mit Punkten (DD.MM.YYYY)
-    patterns_de = [
-        r'Archivierungsstatistiken.*?\((\d{2}\.\d{2}\.\d{4})\)',
-        r'Archiving Statistics.*?\((\d{2}\.\d{2}\.\d{4})\)',
-        r'Jobs.*?\((\d{2}\.\d{2}\.\d{4})\)'
-    ]
-    
-    for pattern in patterns_de:
-        match = re.search(pattern, html_content, re.DOTALL)
-        if match:
-            date_str = match.group(1)
-            try:
-                return datetime.strptime(date_str, '%d.%m.%Y')
-            except ValueError:
-                continue
-
-    # 2. US-/Cloud-Format: Datum mit Slashes (M/D/YYYY)
-    patterns_us = [
-        r'Archivierungsstatistiken.*?\((\d{1,2}/\d{1,2}/\d{4})\)',
-        r'Archiving Statistics.*?\((\d{1,2}/\d{1,2}/\d{4})\)',
-        r'Jobs.*?\((\d{1,2}/\d{1,2}/\d{4})\)'
-    ]
-
-    for pattern in patterns_us:
-        match = re.search(pattern, html_content, re.DOTALL)
-        if match:
-            date_str = match.group(1)
-            try:
-                return datetime.strptime(date_str, '%m/%d/%Y')
-            except ValueError:
-                continue
-    
-    # 3. Fallback: Suche nach "Letzte Ausführung" / "Last Execution" Datum
-    # Deutsches Format: DD.MM.YYYY HH:MM:SS
-    exec_pattern_de = r'(\d{2}\.\d{2}\.\d{4})\s+\d{2}:\d{2}:\d{2}'
-    matches = re.findall(exec_pattern_de, html_content)
-    if matches:
-        try:
-            return datetime.strptime(matches[0], '%d.%m.%Y')
-        except ValueError:
-            pass
-
-    # US-Format: M/D/YYYY H:MM:SS AM/PM
-    exec_pattern_us = r'(\d{1,2}/\d{1,2}/\d{4})\s+\d{1,2}:\d{2}:\d{2}\s*[AP]M'
-    matches = re.findall(exec_pattern_us, html_content)
-    if matches:
-        try:
-            return datetime.strptime(matches[0], '%m/%d/%Y')
-        except ValueError:
-            pass
-    
-    return None
-
 def detect_language(html_content):
     """
     Erkennt die Sprache des Reports
@@ -259,12 +197,12 @@ def process_mailstore_mails(connection):
                 # Extract status from HTML content
                 status = extract_mailstore_status(content)
                 
-                # Extract date
-                backup_date = extract_date_from_mail(content)
+                # Datum & Uhrzeit aus der mails-Tabelle verwenden (= Sendezeitpunkt der Mail)
+                mail_date = mail['date']  # DATETIME-Feld aus der mails-Tabelle
                 
                 if status:
                     print(f"  Status: {status}")
-                    print(f"  Date: {backup_date}")
+                    print(f"  Date: {mail_date}")
                     
                     # Update backup_results
                     cursor.execute("""
@@ -275,8 +213,8 @@ def process_mailstore_mails(connection):
                         WHERE mail_id = %s
                     """, (
                         status,
-                        backup_date.date() if backup_date else None,
-                        backup_date.time() if backup_date else None,
+                        mail_date.date() if mail_date else None,
+                        mail_date.time() if mail_date else None,
                         mail['id']
                     ))
 
