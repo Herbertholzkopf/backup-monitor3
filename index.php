@@ -232,7 +232,7 @@ $dashboardData = array_values($dashboardData);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Backup-Monitor</title>
+    <title>Olaf (ehem. Backup-Monitor)</title>
     <!-- ===== Zentrale Einbindung ===== -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -507,7 +507,7 @@ $dashboardData = array_values($dashboardData);
                 <i class="fas fa-users"></i>
             </a>
             <div class="page-header-title">
-                <h1>Backup Monitor</h1>
+                <h1>Olaf ⛄</h1>
                 <p><?= $stats['total_status_messages'] ?> Statusmeldungen (<?= $daysToShow ?> Tage)</p>
             </div>
             <a href="./settings" class="btn btn-primary">
