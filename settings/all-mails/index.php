@@ -1,9 +1,19 @@
 <?php
 /**
- * E-MAIL ÜBERSICHT — Alle Mails
+ * E-MAIL ÜBERSICHT — Alle Mails (Performance-optimiert)
  * 
  * Pfad:    /settings/all-mails/index.php
  * Includes: ../../includes/styles.css, ../../includes/app.js
+ * 
+ * ÄNDERUNGEN gegenüber der alten Version:
+ * ─────────────────────────────────────────
+ * 1. m.content wird NICHT mehr in der Hauptabfrage geladen
+ *    → Mail-Inhalt wird erst per AJAX geladen, wenn das Modal geöffnet wird
+ * 2. LIKE '%…%' auf content entfernt (MEDIUMTEXT-Volltextsuche = Timeout)
+ *    → Suche nur noch in sender_email, subject, bj.name, c.name
+ * 3. JOIN-Bedingungen korrigiert (OR … IS NULL entfernt)
+ * 4. Einfachere Query-Struktur (kein verschachtelter Subquery)
+ * 5. Prepared Statements gegen SQL-Injection
  */
 
 $config = require_once '../../config.php';
@@ -12,44 +22,179 @@ if ($conn->connect_error) { die('Verbindungsfehler: ' . $conn->connect_error); }
 $conn->set_charset('utf8mb4');
 if (!isset($_SESSION)) { session_start(); }
 
-$search = isset($_GET['search']) ? $conn->real_escape_string($_GET['search']) : '';
-$customer_filter = isset($_GET['customer_filter']) ? (int)$_GET['customer_filter'] : 0;
-$backup_job_filter = isset($_GET['backup_job_filter']) ? (int)$_GET['backup_job_filter'] : 0;
-$status_filter = isset($_GET['status_filter']) ? $conn->real_escape_string($_GET['status_filter']) : '';
-$date_from = isset($_GET['date_from']) ? $conn->real_escape_string($_GET['date_from']) : '';
-$date_to = isset($_GET['date_to']) ? $conn->real_escape_string($_GET['date_to']) : '';
-$processed_filter = isset($_GET['processed_filter']) ? $conn->real_escape_string($_GET['processed_filter']) : '';
-$sort_by = isset($_GET['sort_by']) ? $conn->real_escape_string($_GET['sort_by']) : 'mail_date';
-$sort_order = isset($_GET['sort_order']) ? $conn->real_escape_string($_GET['sort_order']) : 'DESC';
+// ─── AJAX: Mail-Content nachladen (nur wenn Modal geöffnet wird) ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_mail_content') {
+    header('Content-Type: application/json');
+    $response = ['success' => false];
+    if (isset($_POST['mail_id'])) {
+        $mail_id = (int)$_POST['mail_id'];
+        $stmt = $conn->prepare("SELECT content FROM mails WHERE id = ?");
+        $stmt->bind_param('i', $mail_id);
+        $stmt->execute();
+        $r = $stmt->get_result();
+        if ($r && $row = $r->fetch_assoc()) {
+            $response['success'] = true;
+            $response['content'] = $row['content'];
+        }
+        $stmt->close();
+    }
+    echo json_encode($response);
+    $conn->close();
+    exit;
+}
 
-if (!in_array($sort_by, ['mail_date', 'sender_email', 'subject', 'backup_job_name', 'customer_name', 'backup_status'])) $sort_by = 'mail_date';
+// ─── Filter-Parameter ───
+$search            = isset($_GET['search']) ? trim($_GET['search']) : '';
+$customer_filter   = isset($_GET['customer_filter']) ? (int)$_GET['customer_filter'] : 0;
+$backup_job_filter = isset($_GET['backup_job_filter']) ? (int)$_GET['backup_job_filter'] : 0;
+$status_filter     = isset($_GET['status_filter']) ? $_GET['status_filter'] : '';
+$date_from         = isset($_GET['date_from']) ? $_GET['date_from'] : '';
+$date_to           = isset($_GET['date_to']) ? $_GET['date_to'] : '';
+$processed_filter  = isset($_GET['processed_filter']) ? $_GET['processed_filter'] : '';
+$sort_by           = isset($_GET['sort_by']) ? $_GET['sort_by'] : 'mail_date';
+$sort_order        = isset($_GET['sort_order']) ? $_GET['sort_order'] : 'DESC';
+
+// Whitelist für Sort-Spalten
+$allowed_sorts = [
+    'mail_date'       => 'm.date',
+    'sender_email'    => 'm.sender_email',
+    'subject'         => 'm.subject',
+    'backup_job_name' => 'bj.name',
+    'customer_name'   => 'c.name',
+    'backup_status'   => 'br.status',
+];
+if (!isset($allowed_sorts[$sort_by])) $sort_by = 'mail_date';
 if (!in_array($sort_order, ['ASC', 'DESC'])) $sort_order = 'DESC';
+$order_col = $allowed_sorts[$sort_by];
 
 $page = max(1, isset($_GET['page']) ? (int)$_GET['page'] : 1);
 $items_per_page = max(50, min(200, isset($_GET['items_per_page']) ? (int)$_GET['items_per_page'] : 50));
 $offset = ($page - 1) * $items_per_page;
 
-$customers = []; $cr = $conn->query("SELECT id, name FROM customers ORDER BY name"); while ($r = $cr->fetch_assoc()) $customers[$r['id']] = $r['name'];
-$jobs = []; $jr = $conn->query("SELECT id, name FROM backup_jobs ORDER BY name"); while ($r = $jr->fetch_assoc()) $jobs[$r['id']] = $r['name'];
+// ─── Kunden & Jobs für Filter-Dropdowns ───
+$customers = [];
+$cr = $conn->query("SELECT id, name FROM customers ORDER BY name");
+while ($r = $cr->fetch_assoc()) $customers[$r['id']] = $r['name'];
 
-$sql_base = "FROM mails m LEFT JOIN backup_results br ON br.mail_id = m.id LEFT JOIN backup_jobs bj ON br.backup_job_id = bj.id OR bj.id IS NULL LEFT JOIN customers c ON bj.customer_id = c.id OR c.id IS NULL WHERE 1=1";
-if (!empty($search)) $sql_base .= " AND (m.sender_email LIKE '%$search%' OR m.subject LIKE '%$search%' OR m.content LIKE '%$search%' OR bj.name LIKE '%$search%' OR c.name LIKE '%$search%')";
-if ($customer_filter > 0) $sql_base .= " AND c.id = $customer_filter";
-if ($backup_job_filter > 0) $sql_base .= " AND bj.id = $backup_job_filter";
-if (!empty($status_filter)) $sql_base .= " AND br.status = '$status_filter'";
-if (!empty($date_from)) $sql_base .= " AND m.date >= '$date_from 00:00:00'";
-if (!empty($date_to)) $sql_base .= " AND m.date <= '$date_to 23:59:59'";
-if ($processed_filter === '1') $sql_base .= " AND m.result_processed = 1";
-elseif ($processed_filter === '0') $sql_base .= " AND m.result_processed = 0";
+$jobs = [];
+$jr = $conn->query("SELECT id, name FROM backup_jobs ORDER BY name");
+while ($r = $jr->fetch_assoc()) $jobs[$r['id']] = $r['name'];
 
-$total_items = $conn->query("SELECT COUNT(DISTINCT m.id) AS total " . $sql_base)->fetch_assoc()['total'];
-$total_pages = ceil($total_items / $items_per_page);
-if ($page > $total_pages && $total_pages > 0) { $page = $total_pages; $offset = ($page - 1) * $items_per_page; }
+// ─── Query aufbauen mit Prepared Statements ───
+// Korrigierte JOINs — kein "OR ... IS NULL" mehr (LEFT JOIN liefert NULL automatisch)
+$from_sql = "FROM mails m
+    LEFT JOIN backup_results br ON br.mail_id = m.id
+    LEFT JOIN backup_jobs bj ON br.backup_job_id = bj.id
+    LEFT JOIN customers c ON bj.customer_id = c.id";
 
-$order_map = ['customer_name'=>'c_name','backup_job_name'=>'bj_name','backup_status'=>'br.status','mail_date'=>'m.date'];
-$order_col = $order_map[$sort_by] ?? "m.$sort_by";
-$result = $conn->query("SELECT m.id as mail_id, m.date as mail_date, m.sender_email, m.subject, m.result_processed, m.job_found, m.content, m.created_at as mail_created_at, bj.id as backup_job_id, bj.name as backup_job_name, bj.note as backup_job_note, bj.search_term_mail, bj.search_term_subject, bj.search_term_text, bj.search_term_text2, c.id as customer_id, c.name as customer_name, br.id as backup_result_id, br.status as backup_status, br.date as backup_date, br.time as backup_time, br.note as backup_note, br.size_mb, br.duration_minutes FROM (SELECT DISTINCT m.id, m.date, c.name as c_name, bj.name as bj_name, br.status $sql_base ORDER BY $order_col $sort_order LIMIT $offset, $items_per_page) AS filtered_ids JOIN mails m ON m.id = filtered_ids.id LEFT JOIN backup_results br ON br.mail_id = m.id LEFT JOIN backup_jobs bj ON br.backup_job_id = bj.id OR bj.id IS NULL LEFT JOIN customers c ON bj.customer_id = c.id OR c.id IS NULL");
+$where_parts = [];
+$bind_types  = '';
+$bind_values = [];
 
+if (!empty($search)) {
+    // Suche NUR in indizierbaren Feldern — NICHT in m.content (MEDIUMTEXT)!
+    $where_parts[] = "(m.sender_email LIKE ? OR m.subject LIKE ? OR bj.name LIKE ? OR c.name LIKE ?)";
+    $like_val = '%' . $search . '%';
+    $bind_types  .= 'ssss';
+    $bind_values[] = $like_val;
+    $bind_values[] = $like_val;
+    $bind_values[] = $like_val;
+    $bind_values[] = $like_val;
+}
+if ($customer_filter > 0) {
+    $where_parts[] = "c.id = ?";
+    $bind_types .= 'i';
+    $bind_values[] = $customer_filter;
+}
+if ($backup_job_filter > 0) {
+    $where_parts[] = "bj.id = ?";
+    $bind_types .= 'i';
+    $bind_values[] = $backup_job_filter;
+}
+if (in_array($status_filter, ['success', 'warning', 'error'])) {
+    $where_parts[] = "br.status = ?";
+    $bind_types .= 's';
+    $bind_values[] = $status_filter;
+}
+if (!empty($date_from) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_from)) {
+    $where_parts[] = "m.date >= ?";
+    $bind_types .= 's';
+    $bind_values[] = "$date_from 00:00:00";
+}
+if (!empty($date_to) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_to)) {
+    $where_parts[] = "m.date <= ?";
+    $bind_types .= 's';
+    $bind_values[] = "$date_to 23:59:59";
+}
+if ($processed_filter === '1') {
+    $where_parts[] = "m.result_processed = 1";
+} elseif ($processed_filter === '0') {
+    $where_parts[] = "m.result_processed = 0";
+}
+
+$where_sql = count($where_parts) > 0 ? 'WHERE ' . implode(' AND ', $where_parts) : '';
+
+// Hilfsfunktion: Prepared Statement binden und ausführen
+function bind_and_execute($conn, $sql, $types, $values) {
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) { die('Query-Fehler: ' . $conn->error . ' | SQL: ' . $sql); }
+    if (!empty($types) && count($values) > 0) {
+        $refs = [];
+        foreach ($values as $k => $v) {
+            $refs[] = &$values[$k];
+        }
+        $stmt->bind_param($types, ...$refs);
+    }
+    $stmt->execute();
+    return $stmt;
+}
+
+// ─── COUNT-Query ───
+$count_sql = "SELECT COUNT(DISTINCT m.id) AS total $from_sql $where_sql";
+$stmt_count = bind_and_execute($conn, $count_sql, $bind_types, $bind_values);
+$total_items = $stmt_count->get_result()->fetch_assoc()['total'];
+$stmt_count->close();
+
+$total_pages = max(1, ceil($total_items / $items_per_page));
+if ($page > $total_pages) {
+    $page = $total_pages;
+    $offset = ($page - 1) * $items_per_page;
+}
+
+// ─── Hauptquery — OHNE m.content! ───
+$data_sql = "SELECT DISTINCT
+    m.id AS mail_id,
+    m.date AS mail_date,
+    m.sender_email,
+    m.subject,
+    m.result_processed,
+    m.job_found,
+    m.created_at AS mail_created_at,
+    bj.id AS backup_job_id,
+    bj.name AS backup_job_name,
+    bj.note AS backup_job_note,
+    bj.search_term_mail,
+    bj.search_term_subject,
+    bj.search_term_text,
+    bj.search_term_text2,
+    c.id AS customer_id,
+    c.name AS customer_name,
+    br.id AS backup_result_id,
+    br.status AS backup_status,
+    br.date AS backup_date,
+    br.time AS backup_time,
+    br.note AS backup_note,
+    br.size_mb,
+    br.duration_minutes
+$from_sql
+$where_sql
+ORDER BY $order_col $sort_order
+LIMIT $offset, $items_per_page";
+
+$stmt_data = bind_and_execute($conn, $data_sql, $bind_types, $bind_values);
+$result = $stmt_data->get_result();
+
+// ─── Hilfsfunktionen ───
 function getSortLink($f, $csb, $cso) { $p = $_GET; $p['sort_by'] = $f; $p['sort_order'] = ($csb === $f && $cso === 'ASC') ? 'DESC' : 'ASC'; return '?' . http_build_query($p); }
 function getPaginationLink($pn) { $p = $_GET; $p['page'] = $pn; return '?' . http_build_query($p); }
 function getFilterLink($k, $v) { $p = $_GET; if ($v === '') unset($p[$k]); else $p[$k] = $v; $p['page'] = 1; return '?' . http_build_query($p); }
@@ -75,6 +220,7 @@ $hasAnyFilter = !empty($search) || $customer_filter > 0 || $backup_job_filter > 
         .pagination-controls a:hover { background: var(--color-primary-light); color: var(--color-primary); border-color: var(--color-primary); }
         .pagination-controls .active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
         .truncate { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .truncate-lg { max-width: 400px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .advanced-filters { display: none; padding-top: 1rem; border-top: 1px dashed var(--color-gray-200); margin-top: 0.75rem; }
         .advanced-filters.show { display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; }
         .mail-iframe { width: 100%; border: none; min-height: 300px; border-radius: var(--border-radius-sm); background: #fff; }
@@ -87,7 +233,7 @@ $hasAnyFilter = !empty($search) || $customer_filter > 0 || $backup_job_filter > 
             <a href="../" class="back-button"><i class="fas fa-arrow-left"></i></a>
             <div class="page-header-title">
                 <h1>E-Mail Übersicht</h1>
-                <p><?= $total_items ?> Mails</p>
+                <p><?= number_format($total_items, 0, ',', '.') ?> Mails</p>
             </div>
         </header>
 
@@ -97,7 +243,7 @@ $hasAnyFilter = !empty($search) || $customer_filter > 0 || $backup_job_filter > 
                 <form method="get" style="flex: 1; display: flex;">
                     <div class="search-input-wrapper" style="flex: 1;">
                         <i class="fas fa-search search-icon"></i>
-                        <input type="text" name="search" class="search-input" placeholder="Suche..." value="<?= htmlspecialchars($search) ?>">
+                        <input type="text" name="search" class="search-input" placeholder="Absender, Betreff, Job oder Kunde suchen..." value="<?= htmlspecialchars($search) ?>">
                     </div>
                 </form>
                 <select class="form-select" style="width: auto;" onchange="window.location=this.value">
@@ -151,11 +297,14 @@ $hasAnyFilter = !empty($search) || $customer_filter > 0 || $backup_job_filter > 
                             <th>Verarb.</th>
                         </tr></thead>
                         <tbody>
-                            <?php while ($row = $result->fetch_assoc()): $rd = htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8'); ?>
+                            <?php while ($row = $result->fetch_assoc()):
+                                // Nur Metadaten als JSON — KEIN content!
+                                $rd = htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8');
+                            ?>
                             <tr class="clickable" onclick='showDetails(<?= $rd ?>)'>
                                 <td><?= date('d.m.Y H:i', strtotime($row['mail_date'])) ?></td>
                                 <td><div class="truncate" title="<?= htmlspecialchars($row['sender_email']) ?>"><?= htmlspecialchars($row['sender_email']) ?></div></td>
-                                <td><div class="truncate" title="<?= htmlspecialchars($row['subject']) ?>"><?= htmlspecialchars($row['subject']) ?></div></td>
+                                <td><div class="truncate-lg" title="<?= htmlspecialchars($row['subject']) ?>"><?= htmlspecialchars($row['subject']) ?></div></td>
                                 <td><?= $row['backup_job_name'] ? htmlspecialchars($row['backup_job_name']) : ($row['job_found'] ? '<span class="badge badge-gray">Zugeordnet</span>' : '–') ?></td>
                                 <td><?= $row['customer_name'] ? htmlspecialchars($row['customer_name']) : '–' ?></td>
                                 <td><?php if ($row['backup_status']): $bs=$row['backup_status']; ?><span class="badge badge-<?= $bs==='success'?'success':($bs==='warning'?'warning':'danger') ?>"><?= $bs==='success'?'Erfolgreich':($bs==='warning'?'Warnung':'Fehler') ?></span><?php else: ?>–<?php endif; ?></td>
@@ -166,7 +315,7 @@ $hasAnyFilter = !empty($search) || $customer_filter > 0 || $backup_job_filter > 
                     </table>
                 </div>
                 <div class="pagination">
-                    <div class="pagination-info">Zeige <?= ($offset + 1) ?>–<?= min($offset + $items_per_page, $total_items) ?> von <?= $total_items ?></div>
+                    <div class="pagination-info">Zeige <?= number_format($offset + 1, 0, ',', '.') ?>–<?= number_format(min($offset + $items_per_page, $total_items), 0, ',', '.') ?> von <?= number_format($total_items, 0, ',', '.') ?></div>
                     <div class="pagination-controls">
                         <?php if ($page > 1): ?><a href="<?= getPaginationLink(1) ?>"><i class="fas fa-angle-double-left"></i></a><a href="<?= getPaginationLink($page - 1) ?>"><i class="fas fa-angle-left"></i></a><?php endif; ?>
                         <?php $r=2;$sp=max(1,$page-$r);$ep=min($total_pages,$page+$r);if($sp>1)echo'<span>...</span>';for($i=$sp;$i<=$ep;$i++){echo($i==$page)?"<span class=\"active\">$i</span>":"<a href=\"".getPaginationLink($i)."\">$i</a>";}if($ep<$total_pages)echo'<span>...</span>'; ?>
@@ -181,7 +330,6 @@ $hasAnyFilter = !empty($search) || $customer_filter > 0 || $backup_job_filter > 
     <div class="modal" id="detailModal"><div class="modal-dialog modal-lg"><div class="modal-content">
         <div class="modal-header"><h3 class="modal-title"><i class="fas fa-envelope text-blue-500"></i> E-Mail Details</h3><button class="modal-close" onclick="closeModal('detailModal')"><i class="fas fa-times"></i></button></div>
         <div class="modal-body custom-scroll" id="detailBody">
-            <!-- E-Mail Info -->
             <div class="modal-card" style="margin-bottom: 1rem;">
                 <h4 class="modal-card-title"><i class="fas fa-envelope"></i> E-Mail Informationen</h4>
                 <div class="detail-grid">
@@ -192,7 +340,6 @@ $hasAnyFilter = !empty($search) || $customer_filter > 0 || $backup_job_filter > 
                 </div>
                 <div style="margin-top: 1rem;" id="mailContentWrap"></div>
             </div>
-            <!-- Backup-Job Info -->
             <div class="modal-card" style="margin-bottom: 1rem;">
                 <h4 class="modal-card-title"><i class="fas fa-briefcase"></i> Backup-Job</h4>
                 <div class="detail-grid">
@@ -205,7 +352,6 @@ $hasAnyFilter = !empty($search) || $customer_filter > 0 || $backup_job_filter > 
                     <span class="label">Notiz:</span><span class="value" id="jobNote"></span>
                 </div>
             </div>
-            <!-- Backup-Ergebnis -->
             <div class="modal-card">
                 <h4 class="modal-card-title"><i class="fas fa-chart-bar"></i> Backup-Ergebnis</h4>
                 <div class="detail-grid">
@@ -237,24 +383,42 @@ $hasAnyFilter = !empty($search) || $customer_filter > 0 || $backup_job_filter > 
         window.location.href = url.toString();
     }
 
+    // Mail-Content per AJAX nachladen — erst beim Öffnen des Modals
+    async function loadMailContent(mailId) {
+        const wrap = document.getElementById('mailContentWrap');
+        wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--color-gray-400);"><i class="fas fa-spinner fa-spin"></i> Inhalt wird geladen…</div>';
+
+        try {
+            const formData = new FormData();
+            formData.append('action', 'get_mail_content');
+            formData.append('mail_id', mailId);
+            const response = await fetch('', { method: 'POST', body: formData });
+            const result = await response.json();
+
+            if (!result.success) throw new Error('Laden fehlgeschlagen');
+
+            const content = result.content || 'Kein Inhalt verfügbar';
+            const isHTML = /<[a-z][\s\S]*>/i.test(content);
+            if (isHTML) {
+                const escaped = content.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+                wrap.innerHTML = '<iframe class="mail-iframe" sandbox="allow-same-origin" srcdoc="' + escaped + '" onload="this.style.height=this.contentDocument.body.scrollHeight+20+\'px\'"></iframe>';
+            } else {
+                wrap.innerHTML = '<pre style="white-space:pre-wrap;font-family:monospace;font-size:0.875rem;background:var(--color-gray-50);padding:1rem;border-radius:var(--border-radius-sm);">' + escHtml(content) + '</pre>';
+            }
+        } catch (e) {
+            wrap.innerHTML = '<div class="empty-state" style="padding:1rem;"><i class="fas fa-exclamation-circle"></i><p>Fehler beim Laden des Inhalts</p></div>';
+        }
+    }
+
     function showDetails(d) {
         document.getElementById('mailDate').textContent = new Date(d.mail_date).toLocaleString('de-DE');
         document.getElementById('mailSender').textContent = d.sender_email || '–';
         document.getElementById('mailSubject').textContent = d.subject || '–';
         document.getElementById('mailProcessed').textContent = d.result_processed == 1 ? 'Ja' : 'Nein';
 
-        // Mail-Inhalt
-        const wrap = document.getElementById('mailContentWrap');
-        const content = d.content || 'Kein Inhalt verfügbar';
-        const isHTML = /<[a-z][\s\S]*>/i.test(content);
-        if (isHTML) {
-            const escaped = content.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-            wrap.innerHTML = '<iframe class="mail-iframe" sandbox="allow-same-origin" srcdoc="' + escaped + '" onload="this.style.height=this.contentDocument.body.scrollHeight+20+\'px\'"></iframe>';
-        } else {
-            wrap.innerHTML = '<pre style="white-space:pre-wrap;font-family:monospace;font-size:0.875rem;background:var(--color-gray-50);padding:1rem;border-radius:var(--border-radius-sm);">' + escHtml(content) + '</pre>';
-        }
+        // Content erst jetzt per AJAX laden — nicht mehr im Seitenquelltext!
+        loadMailContent(d.mail_id);
 
-        // Backup-Job
         document.getElementById('jobName').textContent = d.backup_job_name || '–';
         document.getElementById('customerName').textContent = d.customer_name || '–';
         document.getElementById('stMail').textContent = d.search_term_mail || '–';
@@ -263,7 +427,6 @@ $hasAnyFilter = !empty($search) || $customer_filter > 0 || $backup_job_filter > 
         document.getElementById('stText2').textContent = d.search_term_text2 || '–';
         document.getElementById('jobNote').textContent = d.backup_job_note || '–';
 
-        // Backup-Ergebnis
         const s = d.backup_status;
         const bsEl = document.getElementById('bStatus');
         if (s) {
@@ -283,4 +446,7 @@ $hasAnyFilter = !empty($search) || $customer_filter > 0 || $backup_job_filter > 
     </script>
 </body>
 </html>
-<?php $conn->close(); ?>
+<?php
+$stmt_data->close();
+$conn->close();
+?>

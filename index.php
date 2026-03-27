@@ -1,9 +1,18 @@
 <?php
 /**
- * BACKUP-MONITOR — Dashboard-Seite
+ * BACKUP-MONITOR — Dashboard-Seite (Performance-optimiert)
  * 
  * Pfad:    /index.php (Root-Verzeichnis)
  * Includes: config.php, includes/styles.css, includes/app.js
+ * 
+ * ÄNDERUNGEN:
+ * ─────────────────────────────────────────
+ * 1. runs_count Subquery entfernt (PHP zählt bereits selbst)
+ * 2. status_duration aus Haupt-Query entfernt → eigener kleiner Query
+ * 3. Result-Daten nicht mehr als JSON in jedem onclick eingebettet
+ *    → zentrales JS-Objekt am Seitenende, onclick nur mit Key
+ * 4. Unnötige Spalten entfernt (c.note, c.created_at — nicht angezeigt)
+ * 5. Prepared Statement für Haupt-Query
  */
 
 // ==========================================
@@ -81,12 +90,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
 $daysToShow = 30;
 $dateLimit = date('Y-m-d', strtotime("-$daysToShow days"));
 
-// Gesamtstatistiken
+// Gesamtstatistiken (UNION ALL — effizient, bleibt wie bisher)
 $statsQuery = "
     SELECT 
         'total_status_messages' as stat_type, COUNT(*) as value 
     FROM backup_results
-    WHERE date >= '$dateLimit'
+    WHERE date >= ?
     
     UNION ALL
     
@@ -103,7 +112,11 @@ $statsQuery = "
     GROUP BY current_status
 ";
 
-$statsResult = $conn->query($statsQuery);
+$stmtStats = $conn->prepare($statsQuery);
+$stmtStats->bind_param('s', $dateLimit);
+$stmtStats->execute();
+$statsResult = $stmtStats->get_result();
+
 $stats = [
     'total_status_messages' => 0,
     'total_backup_jobs' => 0,
@@ -123,29 +136,38 @@ while ($row = $statsResult->fetch_assoc()) {
         $stats[$row['stat_type']] = $row['value'];
     }
 }
+$stmtStats->close();
 
 $countGesamt = $stats['success'] + $stats['warning'] + $stats['error'];
 $countOhneStatus = $stats['total_backup_jobs'] - $countGesamt;
 
 // Alle verfügbaren Backup-Typen für den Filter
-$backupTypesQuery = "SELECT DISTINCT backup_type FROM backup_jobs WHERE backup_type IS NOT NULL AND backup_type != '' ORDER BY backup_type";
-$backupTypesResult = $conn->query($backupTypesQuery);
+$backupTypesResult = $conn->query("SELECT DISTINCT backup_type FROM backup_jobs WHERE backup_type IS NOT NULL AND backup_type != '' ORDER BY backup_type");
 $backupTypes = [];
 while ($row = $backupTypesResult->fetch_assoc()) {
     $backupTypes[] = $row['backup_type'];
 }
 
-// Dashboard-Daten abrufen
+// ─── Status-Lookup separat laden (kleine Tabelle, schneller Query) ───
+// Statt im großen JOIN → eigener Query, Ergebnis als Lookup-Array
+$statusLookup = [];
+$sdResult = $conn->query("SELECT backup_job_id, current_status FROM status_duration");
+while ($row = $sdResult->fetch_assoc()) {
+    $statusLookup[$row['backup_job_id']] = $row['current_status'];
+}
+
+// ─── Dashboard-Hauptquery (optimiert) ───
+// ENTFERNT: runs_count Subquery (PHP zählt selbst via count($gr['results']))
+// ENTFERNT: status_duration JOIN (oben separat geladen)
+// ENTFERNT: c.note, c.created_at (werden auf Dashboard nicht angezeigt)
 $query = "
     SELECT 
         c.id AS customer_id,
         c.name AS customer_name,
         c.number AS customer_number,
-        c.note AS customer_note,
-        c.created_at AS customer_created_at,
         bj.id AS job_id,
         bj.name AS job_name,
-        bj.backup_type AS backup_type,
+        bj.backup_type,
         br.id AS result_id,
         br.status,
         br.date,
@@ -153,27 +175,18 @@ $query = "
         br.note AS result_note,
         br.size_mb,
         br.duration_minutes,
-        br.mail_id,
-        rc.runs_count,
-        sd.current_status AS job_current_status
+        br.mail_id
     FROM customers c
     LEFT JOIN backup_jobs bj ON c.id = bj.customer_id
     LEFT JOIN backup_results br ON bj.id = br.backup_job_id 
-        AND br.date >= '$dateLimit'
-    LEFT JOIN (
-        SELECT 
-            backup_job_id,
-            date,
-            COUNT(*) as runs_count
-        FROM backup_results
-        WHERE date >= '$dateLimit'
-        GROUP BY backup_job_id, date
-    ) rc ON rc.backup_job_id = bj.id AND rc.date = br.date
-    LEFT JOIN status_duration sd ON bj.id = sd.backup_job_id
+        AND br.date >= ?
     ORDER BY c.name, bj.name, br.date DESC, br.time DESC
 ";
 
-$result = $conn->query($query);
+$stmtMain = $conn->prepare($query);
+$stmtMain->bind_param('s', $dateLimit);
+$stmtMain->execute();
+$result = $stmtMain->get_result();
 
 // Daten strukturieren
 $dashboardData = [];
@@ -187,9 +200,7 @@ if ($result) {
                 'customer' => [
                     'id' => $row['customer_id'],
                     'name' => $row['customer_name'],
-                    'number' => $row['customer_number'],
-                    'note' => $row['customer_note'],
-                    'created_at' => $row['customer_created_at']
+                    'number' => $row['customer_number']
                 ],
                 'jobs' => []
             ];
@@ -203,7 +214,7 @@ if ($result) {
                     'job_id' => $row['job_id'],
                     'job_name' => $row['job_name'],
                     'backup_type' => $row['backup_type'],
-                    'current_status' => $row['job_current_status'] ?? 'none',
+                    'current_status' => $statusLookup[$row['job_id']] ?? 'none',
                     'results' => []
                 ];
             }
@@ -217,15 +228,36 @@ if ($result) {
                     'note' => $row['result_note'],
                     'size_mb' => $row['size_mb'],
                     'duration_minutes' => $row['duration_minutes'],
-                    'runs_count' => $row['runs_count'],
                     'mail_id' => $row['mail_id']
                 ];
             }
         }
     }
 }
+$stmtMain->close();
 
 $dashboardData = array_values($dashboardData);
+
+// ─── Result-Daten für JavaScript sammeln ───
+// Statt JSON in jedem onclick → ein zentrales Objekt
+// Key = "jobId_date", Value = Array der Results für diesen Tag
+$jsResultData = [];
+foreach ($dashboardData as $customerData) {
+    foreach ($customerData['jobs'] as $job) {
+        $groupedResults = [];
+        foreach ($job['results'] as $r) {
+            $date = $r['date'];
+            if (!isset($groupedResults[$date])) {
+                $groupedResults[$date] = [];
+            }
+            $groupedResults[$date][] = $r;
+        }
+        foreach ($groupedResults as $date => $results) {
+            $key = $job['job_id'] . '_' . $date;
+            $jsResultData[$key] = $results;
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -699,10 +731,13 @@ $dashboardData = array_values($dashboardData);
                                     $gr = $groupedResults[$date];
                                     $colorClass = $gr['status'] === 'success' ? 'bg-success' :
                                                  ($gr['status'] === 'warning' ? 'bg-warning' : 'bg-error');
+                                    // Key für das zentrale JS-Datenobjekt
+                                    $resultKey = $job['job_id'] . '_' . $date;
                             ?>
                                 <div class="result-square <?= $colorClass ?>"
                                      data-date="<?= $date ?>"
-                                     onclick="showResultTooltip(this, <?= htmlspecialchars(json_encode($gr['results'])) ?>)">
+                                     data-result-key="<?= $resultKey ?>"
+                                     onclick="showResultTooltip(this, '<?= $resultKey ?>')">
                                     <?php if (count($gr['results']) > 1): ?>
                                         <div class="result-count"><?= count($gr['results']) ?></div>
                                     <?php endif; ?>
@@ -756,7 +791,7 @@ $dashboardData = array_values($dashboardData);
          FOOTER
          ============================================================ -->
     <footer class="app-footer">
-        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller - 59h Arbeitszeit (Stand 18.03.2026) (v45)</a>
+        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller - 60h Arbeitszeit (Stand 18.03.2026) (v46)</a>
     </footer>
 
 
@@ -764,6 +799,12 @@ $dashboardData = array_values($dashboardData);
          JAVASCRIPT
          ============================================================ -->
     <script src="includes/app.js"></script>
+
+    <!-- Result-Daten als zentrales Objekt (statt JSON in jedem onclick) -->
+    <script>
+    const resultData = <?= json_encode($jsResultData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    </script>
+
     <script>
     /* ==========================================
        SEITEN-SPEZIFISCHES JAVASCRIPT
@@ -805,7 +846,11 @@ $dashboardData = array_values($dashboardData);
             : parseFloat(sizeMB).toFixed(2) + ' MB';
     }
 
-    function showResultTooltip(element, results) {
+    function showResultTooltip(element, resultKey) {
+        // Results aus dem zentralen Datenobjekt holen (statt aus inline-JSON)
+        const results = resultData[resultKey];
+        if (!results) return;
+
         const tooltip = document.getElementById('resultTooltip');
         const rect = element.getBoundingClientRect();
 
@@ -1167,3 +1212,4 @@ $dashboardData = array_values($dashboardData);
 
 </body>
 </html>
+<?php $conn->close(); ?>

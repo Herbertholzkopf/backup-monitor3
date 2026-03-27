@@ -110,6 +110,7 @@ if (isset($_SESSION['message'])) { $jsMsg = addslashes($_SESSION['message']); $j
         .pagination-controls a:hover { background: var(--color-primary-light); color: var(--color-primary); border-color: var(--color-primary); }
         .pagination-controls .active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
         .truncate { max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .truncate-lg { max-width: 500px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .mail-iframe { width: 100%; border: none; min-height: 300px; border-radius: var(--border-radius-sm); background: #fff; }
     </style>
 </head>
@@ -165,7 +166,7 @@ if (isset($_SESSION['message'])) { $jsMsg = addslashes($_SESSION['message']); $j
                             ?>
                             <tr class="clickable" onclick='showMailDetails(<?= $mailDataJson ?>)'>
                                 <td><div class="truncate"><?= htmlspecialchars($row['sender_email']) ?></div></td>
-                                <td><div class="truncate"><span class="font-medium text-gray-900"><?= htmlspecialchars($row['subject']) ?></span></div></td>
+                                <td><div class="truncate-lg"><span class="font-medium text-gray-900"><?= htmlspecialchars($row['subject']) ?></span></div></td>
                                 <td><?= date('d.m.Y H:i', strtotime($row['created_at'])) ?></td>
                                 <td class="text-right" onclick="event.stopPropagation();" style="white-space: nowrap;">
                                     <button onclick='showAssignModal(<?= $row["id"] ?>)' class="btn btn-outline btn-sm" title="Zuweisen"><i class="fas fa-link"></i></button>
