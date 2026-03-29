@@ -258,6 +258,18 @@ foreach ($dashboardData as $customerData) {
         }
     }
 }
+
+// Vorberechnen: welche Kunden-Cards enthalten animierte Jobs (erste 15)?
+$animatedCardIds = [];
+$preJobCount = 0;
+foreach ($dashboardData as $cData) {
+    foreach ($cData['jobs'] as $j) {
+        if ($preJobCount < 15) {
+            $animatedCardIds[$cData['customer']['id']] = true;
+        }
+        $preJobCount++;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -517,6 +529,83 @@ foreach ($dashboardData as $customerData) {
             background-color: var(--color-gray-100);
         }
 
+        /* ─── Eingangs-Animationen ─── */
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes squareIn {
+            from { opacity: 0; transform: scale(0.3); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes statIn {
+            from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes jobIn {
+            from { opacity: 0; transform: translateX(-8px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ─── Stat-Cards: nur beim Laden, nie wieder ─── */
+        .stat-card {
+            opacity: 0;
+            animation: statIn 0.35s ease-out forwards;
+        }
+        .stat-cards .stat-card:nth-child(1) { animation-delay: 0.04s; }
+        .stat-cards .stat-card:nth-child(2) { animation-delay: 0.1s; }
+        .stat-cards .stat-card:nth-child(3) { animation-delay: 0.16s; }
+        .stat-cards .stat-card:nth-child(4) { animation-delay: 0.22s; }
+        .stat-cards .stat-card:nth-child(5) { animation-delay: 0.28s; }
+
+        /* ─── Kunden-Karten: nur beim Laden animieren ─── */
+        .customer-card.anim {
+            opacity: 0;
+            animation: cardIn 0.35s ease-out forwards;
+            animation-delay: calc(0.06s * var(--card-i, 0) + 0.15s);
+        }
+
+        /* ─── Job-Container: Slide-In nur beim Laden ─── */
+        .job-container.anim {
+            animation: jobIn 0.25s ease-out both;
+        }
+
+        /* ─── Result-Quadrate: Pop-In beim Laden ─── */
+        .job-container.anim .result-square {
+            opacity: 0;
+            animation: squareIn 0.25s ease-out forwards;
+            animation-delay: calc(8ms * var(--sq-i, 0) + 0.25s);
+        }
+
+        /* ─── Filter: nur Quadrate animieren (schneller, keine Lücken) ─── */
+        .job-container.sq-anim .result-square {
+            opacity: 0;
+            animation: squareIn 0.2s ease-out forwards;
+            animation-delay: calc(6ms * var(--sq-i, 0));
+        }
+
+        /* Hidden = sofort weg, keine Animation */
+        .customer-card.hidden,
+        .job-container.hidden {
+            display: none;
+        }
+
+        /* Reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            .stat-card,
+            .customer-card.anim,
+            .job-container.anim,
+            .job-container.anim .result-square,
+            .job-container.sq-anim .result-square {
+                animation: none !important;
+                opacity: 1 !important;
+                transform: none !important;
+            }
+        }
+
         /* Mail-Inhalt Iframe Sandbox */
         .mail-iframe {
             width: 100%;
@@ -679,10 +768,15 @@ foreach ($dashboardData as $customerData) {
         <!-- ============================================================
              KUNDENLISTE
              ============================================================ -->
-        <?php foreach ($dashboardData as $customerData): ?>
-            <div class="content-card mb-4 customer-card"
+        <?php $cardIndex = 0; $globalJobIndex = 0; foreach ($dashboardData as $customerData):
+            $customerId = $customerData['customer']['id'];
+            $cardHasAnim = isset($animatedCardIds[$customerId]);
+        ?>
+            <div class="content-card mb-4 customer-card <?= $cardHasAnim ? 'anim' : '' ?>"
+                 style="--card-i: <?= min($cardIndex, 15) ?>"
                  data-customer-name="<?= htmlspecialchars(strtolower($customerData['customer']['name'])) ?>"
                  data-customer-number="<?= htmlspecialchars(strtolower($customerData['customer']['number'])) ?>">
+                <?php $cardIndex++; ?>
 
                 <div class="section-header" style="margin-bottom: 1.25rem;">
                     <h2 class="section-title"><?= htmlspecialchars($customerData['customer']['name']) ?></h2>
@@ -690,10 +784,11 @@ foreach ($dashboardData as $customerData) {
                 </div>
 
                 <?php foreach ($customerData['jobs'] as $job): ?>
-                    <div class="job-container"
+                    <div class="job-container <?= $globalJobIndex < 15 ? 'anim' : '' ?>"
                          data-job-name="<?= htmlspecialchars(strtolower($job['job_name'])) ?>"
                          data-backup-type="<?= htmlspecialchars($job['backup_type']) ?>"
                          data-current-status="<?= htmlspecialchars($job['current_status']) ?>">
+                    <?php $globalJobIndex++; ?>
 
                         <div class="flex items-center gap-2 mb-2">
                             <span class="font-medium text-gray-700"><?= htmlspecialchars($job['job_name']) ?></span>
@@ -726,6 +821,7 @@ foreach ($dashboardData as $customerData) {
                                 }
                             }
 
+                            $sqIndex = 0;
                             foreach ($dates as $date):
                                 if (isset($groupedResults[$date])):
                                     $gr = $groupedResults[$date];
@@ -735,6 +831,7 @@ foreach ($dashboardData as $customerData) {
                                     $resultKey = $job['job_id'] . '_' . $date;
                             ?>
                                 <div class="result-square <?= $colorClass ?>"
+                                     style="--sq-i: <?= $sqIndex ?>"
                                      data-date="<?= $date ?>"
                                      data-result-key="<?= $resultKey ?>"
                                      onclick="showResultTooltip(this, '<?= $resultKey ?>')">
@@ -743,8 +840,9 @@ foreach ($dashboardData as $customerData) {
                                     <?php endif; ?>
                                 </div>
                             <?php else: ?>
-                                <div class="result-square bg-empty" data-date="<?= $date ?>"></div>
+                                <div class="result-square bg-empty" style="--sq-i: <?= $sqIndex ?>" data-date="<?= $date ?>"></div>
                             <?php endif;
+                            $sqIndex++;
                             endforeach; ?>
                         </div>
                     </div>
@@ -791,7 +889,7 @@ foreach ($dashboardData as $customerData) {
          FOOTER
          ============================================================ -->
     <footer class="app-footer">
-        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller - 60h Arbeitszeit (Stand 18.03.2026) (v46)</a>
+        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller - 61h Arbeitszeit (Stand 29.03.2026) (v47)</a>
     </footer>
 
 
@@ -815,6 +913,27 @@ foreach ($dashboardData as $customerData) {
 
     // --- Status-Filter für Stat-Cards ---
     let activeStatusFilter = '';
+    let animCleanupTimer = null;
+    let initialAnimDone = false;
+
+    // Eingangs-Animationen nach 2s aufräumen → flüssiges Scrollen
+    // (.anim-Klassen wurden serverseitig in PHP gesetzt)
+    setTimeout(() => {
+        // .anim abräumen, opacity setzen
+        document.querySelectorAll('.customer-card.anim').forEach(el => {
+            el.classList.remove('anim');
+            el.style.opacity = '1';
+        });
+        document.querySelectorAll('.job-container.anim').forEach(el => {
+            el.classList.remove('anim');
+        });
+        // Stat-Cards: Animation permanent stoppen (kein Re-Play bei Filter)
+        document.querySelectorAll('.stat-card').forEach(el => {
+            el.style.animation = 'none';
+            el.style.opacity = '1';
+        });
+        initialAnimDone = true;
+    }, 2000);
 
     function filterByStatus(status) {
         activeStatusFilter = (activeStatusFilter === status) ? '' : status;
@@ -1079,6 +1198,8 @@ foreach ($dashboardData as $customerData) {
                 if (cb.checked) activeTypeFilters.push(cb.value.toLowerCase());
             });
 
+            let visibleIndex = 0;
+
             customerCards.forEach(card => {
                 const customerName   = card.dataset.customerName || '';
                 const customerNumber = card.dataset.customerNumber || '';
@@ -1096,7 +1217,6 @@ foreach ($dashboardData as $customerData) {
                         jobs.forEach(job => {
                             const jobType   = (job.dataset.backupType || '').toLowerCase();
                             const jobStatus = (job.dataset.currentStatus || '').toLowerCase();
-
                             const matchType   = activeTypeFilters.length === 0 || activeTypeFilters.includes(jobType);
                             const matchStatus = !activeStatusFilter || jobStatus === activeStatusFilter;
 
@@ -1116,7 +1236,6 @@ foreach ($dashboardData as $customerData) {
                         const jobName   = (job.dataset.jobName || '').toLowerCase();
                         const jobType   = (job.dataset.backupType || '').toLowerCase();
                         const jobStatus = (job.dataset.currentStatus || '').toLowerCase();
-
                         const matchSearch = searchTerm === '' || jobName.includes(searchTerm);
                         const matchType   = activeTypeFilters.length === 0 || activeTypeFilters.includes(jobType);
                         const matchStatus = !activeStatusFilter || jobStatus === activeStatusFilter;
@@ -1133,6 +1252,28 @@ foreach ($dashboardData as $customerData) {
 
                 card.classList.toggle('hidden', !cardVisible);
             });
+
+            // Quadrat-Animation auf die ersten 15 sichtbaren Jobs
+            if (initialAnimDone) {
+                // Alte sq-anim abräumen
+                document.querySelectorAll('.job-container.sq-anim').forEach(el => el.classList.remove('sq-anim'));
+
+                // Erste 15 sichtbare Jobs: Quadrate animieren
+                const visibleJobs = document.querySelectorAll('.job-container:not(.hidden)');
+                let count = 0;
+                visibleJobs.forEach(job => {
+                    if (count < 15) {
+                        job.classList.add('sq-anim');
+                        count++;
+                    }
+                });
+
+                // Nach 600ms aufräumen
+                clearTimeout(animCleanupTimer);
+                animCleanupTimer = setTimeout(() => {
+                    document.querySelectorAll('.job-container.sq-anim').forEach(el => el.classList.remove('sq-anim'));
+                }, 600);
+            }
 
             updateCounter();
         }
