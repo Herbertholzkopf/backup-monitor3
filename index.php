@@ -98,6 +98,12 @@ $statsQuery = "
     WHERE date >= ?
     
     UNION ALL
+
+    SELECT 
+        'total_all', COUNT(*) 
+    FROM backup_results
+    
+    UNION ALL
     
     SELECT 
         'total_backup_jobs', COUNT(*) 
@@ -119,6 +125,7 @@ $statsResult = $stmtStats->get_result();
 
 $stats = [
     'total_status_messages' => 0,
+    'total_all' => 0,
     'total_backup_jobs' => 0,
     'success' => 0,
     'warning' => 0,
@@ -629,7 +636,7 @@ foreach ($dashboardData as $cData) {
             </a>
             <div class="page-header-title">
                 <h1>Olaf ⛄</h1>
-                <p><?= $stats['total_status_messages'] ?> Statusmeldungen (<?= $daysToShow ?> Tage)</p>
+                <p><?= number_format($stats['total_all'], 0, ',', '.') ?> Mails verarbeitet</p>
             </div>
             <a href="./settings" class="btn btn-primary">
                 <i class="fas fa-cog"></i> Einstellungen
