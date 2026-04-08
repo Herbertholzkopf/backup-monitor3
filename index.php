@@ -896,7 +896,7 @@ foreach ($dashboardData as $cData) {
          FOOTER
          ============================================================ -->
     <footer class="app-footer">
-        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller - 61h Arbeitszeit (Stand 29.03.2026) (v47)</a>
+        Made with ❤️ by <a href="https://github.com/Herbertholzkopf/">Andreas Koller - 61h Arbeitszeit (Stand 08.04.2026) (v48)</a>
     </footer>
 
 
